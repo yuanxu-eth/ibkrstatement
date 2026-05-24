@@ -32,7 +32,26 @@
             <button class="language-option" type="button" data-language="zh">中</button>
             <button class="language-option" type="button" data-language="en">EN</button>
           </div>
-          <span class="privacy-pill" id="privacyPill">Local only</span>
+          <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">
+            <span class="theme-toggle-option theme-toggle-sun" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2" />
+                <path d="M12 20v2" />
+                <path d="m4.93 4.93 1.41 1.41" />
+                <path d="m17.66 17.66 1.41 1.41" />
+                <path d="M2 12h2" />
+                <path d="M20 12h2" />
+                <path d="m6.34 17.66-1.41 1.41" />
+                <path d="m19.07 4.93-1.41 1.41" />
+              </svg>
+            </span>
+            <span class="theme-toggle-option theme-toggle-moon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M20.3 15.2A8.5 8.5 0 0 1 8.8 3.7 8.5 8.5 0 1 0 20.3 15.2Z" />
+              </svg>
+            </span>
+          </button>
           <button class="ghost-button hidden" id="resetButton" type="button">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 12a8 8 0 1 0 2.35-5.65" />

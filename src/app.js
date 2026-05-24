@@ -2,18 +2,21 @@ import { parseIbkrReport } from "./parser.js";
 
 const app = document.querySelector("#app");
 const resetButton = document.querySelector("#resetButton");
-const privacyPill = document.querySelector("#privacyPill");
+const themeToggle = document.querySelector("#themeToggle");
 const resetLabel = document.querySelector("#resetLabel");
 const languageSwitcher = document.querySelector("#languageSwitcher");
 
 let currentData = null;
 let activeTab = "overview";
 let currentLanguage = localStorage.getItem("ibkr-report-language") || "zh";
+let currentTheme = localStorage.getItem("ibkr-report-theme") === "dark" ? "dark" : "light";
 
 const translations = {
   zh: {
     htmlLang: "zh-CN",
     privacy: "仅本地",
+    themeToDark: "切换到暗色模式",
+    themeToLight: "切换到浅色模式",
     reset: "重置",
     eyebrow: "IBKR Activity Statement",
     homeTitle: "IBKR报表解析",
@@ -59,7 +62,7 @@ const translations = {
     monthlyNetContribution: "月度净贡献",
     monthlyNetContributionKicker: "净月度贡献",
     assetAllocation: "资产配置",
-    assetAllocationKicker: "按持仓市值统计",
+    assetAllocationKicker: "按组合市值统计",
     navChange: "NAV 变化",
     navBridge: "报表周期桥接",
     notices: "提示",
@@ -83,6 +86,8 @@ const translations = {
     dataNormal: "数据结构正常",
     rows: "rows",
     searchSymbol: "搜索标的",
+    positionAssetPie: "持仓资产分布",
+    positionAssetPieKicker: "按标的市值统计",
     symbol: "标的",
     asset: "资产",
     side: "方向",
@@ -96,6 +101,8 @@ const translations = {
     plDistributionKicker: "已实现与未实现盈亏",
     tickerContribution: "Ticker 贡献",
     closedPositions: "已平仓持仓",
+    positiveContribution: "正贡献",
+    negativeContribution: "负贡献",
     monthlyDetails: "月度明细",
     incomeCosts: "收入与成本",
     realizedTrades: "已实现交易",
@@ -124,6 +131,7 @@ const translations = {
     noTradeRange: "暂无交易区间",
     long: "多头",
     short: "空头",
+    cashAsset: "现金",
     navStartingValue: "期初净值",
     navMarkToMarket: "盯市变化",
     navDepositsAndWithdrawals: "出入金",
@@ -138,6 +146,8 @@ const translations = {
   en: {
     htmlLang: "en",
     privacy: "Local only",
+    themeToDark: "Switch to dark mode",
+    themeToLight: "Switch to light mode",
     reset: "Reset",
     eyebrow: "IBKR Activity Statement",
     homeTitle: "IBKR Statement Parser",
@@ -183,7 +193,7 @@ const translations = {
     monthlyNetContribution: "Monthly net contribution",
     monthlyNetContributionKicker: "Net monthly contribution",
     assetAllocation: "Asset allocation",
-    assetAllocationKicker: "Open positions by market value",
+    assetAllocationKicker: "By portfolio value",
     navChange: "NAV change",
     navBridge: "Statement period bridge",
     notices: "Notices",
@@ -207,6 +217,8 @@ const translations = {
     dataNormal: "Data structure looks normal",
     rows: "rows",
     searchSymbol: "Search symbol",
+    positionAssetPie: "Position asset allocation",
+    positionAssetPieKicker: "By underlying market value",
     symbol: "Symbol",
     asset: "Asset",
     side: "Side",
@@ -220,6 +232,8 @@ const translations = {
     plDistributionKicker: "Realized and unrealized P/L",
     tickerContribution: "Ticker contribution",
     closedPositions: "Closed positions",
+    positiveContribution: "Positive",
+    negativeContribution: "Negative",
     monthlyDetails: "Monthly details",
     incomeCosts: "Income and costs",
     realizedTrades: "Realized trades",
@@ -248,6 +262,7 @@ const translations = {
     noTradeRange: "No trade range",
     long: "Long",
     short: "Short",
+    cashAsset: "Cash",
     navStartingValue: "Starting value",
     navMarkToMarket: "Mark-to-market",
     navDepositsAndWithdrawals: "Deposits & withdrawals",
@@ -272,6 +287,8 @@ const icons = {
 };
 
 bindLanguageSwitcher();
+bindThemeToggle();
+applyTheme(currentTheme);
 updateLanguageChrome();
 renderUpload();
 
@@ -300,10 +317,34 @@ function bindLanguageSwitcher() {
   });
 }
 
+function bindThemeToggle() {
+  themeToggle?.addEventListener("click", () => {
+    currentTheme = currentTheme === "dark" ? "light" : "dark";
+    localStorage.setItem("ibkr-report-theme", currentTheme);
+    applyTheme(currentTheme);
+  });
+}
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  updateThemeToggle();
+}
+
+function updateThemeToggle() {
+  if (!themeToggle) return;
+
+  const isDark = currentTheme === "dark";
+  const label = isDark ? t("themeToLight") : t("themeToDark");
+  themeToggle.classList.toggle("is-dark", isDark);
+  themeToggle.setAttribute("aria-pressed", String(isDark));
+  themeToggle.setAttribute("aria-label", label);
+  themeToggle.setAttribute("title", label);
+}
+
 function updateLanguageChrome() {
   document.documentElement.lang = t("htmlLang");
-  privacyPill.textContent = t("privacy");
   resetLabel.textContent = t("reset");
+  updateThemeToggle();
 
   languageSwitcher?.querySelectorAll("[data-language]").forEach((button) => {
     const isActive = button.dataset.language === currentLanguage;
@@ -552,6 +593,8 @@ function renderTabs() {
 }
 
 function renderOverview(data) {
+  const portfolioAllocation = buildPortfolioAllocation(data);
+
   return `
     ${renderKpis(data)}
     <div class="insight-strip">
@@ -559,7 +602,7 @@ function renderOverview(data) {
       ${renderMiniStat(t("currentPositions"), formatNumber(data.positions.length), `${data.assetAllocation.length} ${t("assetClasses")}`)}
       ${renderMiniStat(t("recognizedSections"), formatNumber(Object.keys(data.sectionStats).length), "IBKR CSV")}
     </div>
-    <div class="content-grid">
+    <div class="content-grid overview-grid">
       <article class="data-card">
         <div class="card-header">
           <div>
@@ -576,7 +619,7 @@ function renderOverview(data) {
             <div class="card-kicker">${t("assetAllocationKicker")}</div>
           </div>
         </div>
-        ${renderAllocation(data.assetAllocation, data.baseCurrency)}
+        ${renderAllocation(portfolioAllocation, data.baseCurrency)}
       </div>
       <article class="data-card">
         <div class="card-header">
@@ -590,14 +633,38 @@ function renderOverview(data) {
       <article class="data-card">
         <div class="card-header">
           <div>
-            <h2 class="card-title">${t("notices")}</h2>
-            <div class="card-kicker">${t("parserDiagnostics")}</div>
+            <h2 class="card-title">${t("assetAllocation")}</h2>
+            <div class="card-kicker">${t("assetAllocationKicker")}</div>
           </div>
         </div>
-        ${renderWarnings(data.warnings)}
+        ${renderAssetDonut(portfolioAllocation, data.baseCurrency)}
       </article>
     </div>
   `;
+}
+
+function buildPortfolioAllocation(data) {
+  const rows = data.assetAllocation.map((row) => ({ ...row }));
+  const cash = Math.max(0, data.nav.cash || 0);
+
+  if (cash > 0) {
+    rows.push({
+      name: "Cash",
+      value: cash,
+      weight: 0
+    });
+  }
+
+  const total = rows.reduce((sum, row) => sum + Math.abs(row.value), 0);
+  if (!total) return rows;
+
+  return rows
+    .map((row) => ({
+      ...row,
+      value: Math.abs(row.value),
+      weight: Math.abs(row.value) / total
+    }))
+    .sort((a, b) => b.value - a.value);
 }
 
 function renderKpis(data) {
@@ -693,6 +760,46 @@ function renderAllocation(rows, currency) {
   `;
 }
 
+function renderAssetDonut(rows, currency) {
+  if (!rows.length) return `<div class="empty-state">${t("noPositionMarketValue")}</div>`;
+
+  const palette = ["#3186f6", "#0b6b5d", "#b57936", "#7c6ee6", "#d85d5d", "#2aa6a1"];
+  let cursor = 0;
+  const gradient = rows
+    .map((row, index) => {
+      const start = cursor;
+      const end = cursor + row.weight * 100;
+      cursor = end;
+      return `${palette[index % palette.length]} ${start.toFixed(2)}% ${end.toFixed(2)}%`;
+    })
+    .join(", ");
+  const total = rows.reduce((sum, row) => sum + row.value, 0);
+
+  return `
+    <div class="asset-donut-layout">
+      <div class="asset-donut" style="--donut-gradient:${gradient}" aria-label="${t("assetAllocation")}">
+        <span>${formatPercent(100)}</span>
+      </div>
+      <div class="asset-donut-legend">
+        ${rows
+          .map(
+            (row, index) => `
+              <div class="donut-legend-row">
+                <span class="donut-legend-label">
+                  <i style="background:${palette[index % palette.length]}"></i>
+                  ${escapeHtml(displayGroupName(row.name))}
+                </span>
+                <strong>${formatPercent(row.weight * 100)}</strong>
+              </div>
+            `
+          )
+          .join("")}
+        <div class="donut-total">${formatMoney(total, currency)}</div>
+      </div>
+    </div>
+  `;
+}
+
 function renderNavChange(rows, currency) {
   const visibleRows = rows.filter((row) => row.value !== 0 || row.key === "startingValue" || row.key === "endingValue");
   if (!visibleRows.length) return `<div class="empty-state">${t("noNavDetails")}</div>`;
@@ -751,6 +858,17 @@ function renderPositions(data) {
         </table>
       </div>
     </div>
+    <article class="data-card position-chart-card">
+      <div class="card-header">
+        <div>
+          <h2 class="card-title">${t("positionAssetPie")}</h2>
+          <div class="card-kicker">${t("positionAssetPieKicker")}</div>
+        </div>
+      </div>
+      <div id="positionAssetPie">
+        ${renderPositionAssetPie(data.positions, data.baseCurrency)}
+      </div>
+    </article>
   `;
 }
 
@@ -780,45 +898,114 @@ function renderPositionRows(positions, currency) {
     .join("");
 }
 
+function buildPositionAssetAllocation(positions) {
+  const map = new Map();
+
+  for (const position of positions) {
+    const value = Math.abs(position.value);
+    if (!value) continue;
+
+    const name = position.baseSymbol || position.symbol || "Other";
+    map.set(name, (map.get(name) || 0) + value);
+  }
+
+  const total = Array.from(map.values()).reduce((sum, value) => sum + value, 0);
+  if (!total) return [];
+
+  return Array.from(map.entries())
+    .map(([name, value]) => ({
+      name,
+      value,
+      weight: value / total
+    }))
+    .sort((a, b) => b.value - a.value);
+}
+
+function renderPositionAssetPie(positions, currency) {
+  const rows = buildPositionAssetAllocation(positions);
+  if (!rows.length) return `<div class="empty-state">${t("noPositionMarketValue")}</div>`;
+
+  const palette = ["#3186f6", "#0b6b5d", "#b57936", "#7c6ee6", "#d85d5d", "#2aa6a1", "#69a64d", "#bd6aa8"];
+  let cursor = 0;
+  const gradient = rows
+    .map((row, index) => {
+      const start = cursor;
+      const end = cursor + row.weight * 100;
+      cursor = end;
+      return `${palette[index % palette.length]} ${start.toFixed(2)}% ${end.toFixed(2)}%`;
+    })
+    .join(", ");
+  const total = rows.reduce((sum, row) => sum + row.value, 0);
+
+  return `
+    <div class="position-pie-layout">
+      <div class="asset-pie" style="--pie-gradient:${gradient}" role="img" aria-label="${t("positionAssetPie")}"></div>
+      <div class="position-pie-legend">
+        ${rows
+          .map(
+            (row, index) => `
+              <div class="position-pie-row">
+                <span class="position-pie-label">
+                  <i style="background:${palette[index % palette.length]}"></i>
+                  ${escapeHtml(row.name)}
+                </span>
+                <span class="position-pie-value">
+                  <strong>${formatPercent(row.weight * 100)}</strong>
+                  <span>${formatMoney(row.value, currency)}</span>
+                </span>
+              </div>
+            `
+          )
+          .join("")}
+        <div class="donut-total">${formatMoney(total, currency)}</div>
+      </div>
+    </div>
+  `;
+}
+
 function renderPerformance(data) {
   return `
-    <div class="content-grid">
-      <article class="data-card">
-        <div class="card-header">
-          <div>
-            <h2 class="card-title">${t("plDistribution")}</h2>
-            <div class="card-kicker">${t("plDistributionKicker")}</div>
+    <div class="performance-grid">
+      <div class="performance-column">
+        <article class="data-card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">${t("plDistribution")}</h2>
+              <div class="card-kicker">${t("plDistributionKicker")}</div>
+            </div>
           </div>
-        </div>
-        ${renderPlTable(data)}
-      </article>
-      <article class="data-card">
-        <div class="card-header">
-          <div>
-            <h2 class="card-title">${t("tickerContribution")}</h2>
-            <div class="card-kicker">${t("closedPositions")}</div>
+          ${renderPlTable(data)}
+        </article>
+        <article class="data-card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">${t("monthlyDetails")}</h2>
+              <div class="card-kicker">${t("incomeCosts")}</div>
+            </div>
           </div>
-        </div>
-        ${renderTickerTable(data.tickerPL, data.baseCurrency)}
-      </article>
-      <article class="data-card">
-        <div class="card-header">
-          <div>
-            <h2 class="card-title">${t("monthlyDetails")}</h2>
-            <div class="card-kicker">${t("incomeCosts")}</div>
+          ${renderMonthlyTable(data.monthlySummary, data.baseCurrency)}
+        </article>
+        <article class="data-card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">${t("realizedTrades")}</h2>
+              <div class="card-kicker">${t("topAbsPL")}</div>
+            </div>
           </div>
-        </div>
-        ${renderMonthlyTable(data.monthlySummary, data.baseCurrency)}
-      </article>
-      <article class="data-card">
-        <div class="card-header">
-          <div>
-            <h2 class="card-title">${t("realizedTrades")}</h2>
-            <div class="card-kicker">${t("topAbsPL")}</div>
+          ${renderRealizedTrades(data.tradeSummary.topRealizedTrades, data.baseCurrency)}
+        </article>
+      </div>
+      <div class="performance-column">
+        <article class="data-card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">${t("tickerContribution")}</h2>
+              <div class="card-kicker">${t("closedPositions")}</div>
+            </div>
           </div>
-        </div>
-        ${renderRealizedTrades(data.tradeSummary.topRealizedTrades, data.baseCurrency)}
-      </article>
+          ${renderTickerTable(data.tickerPL, data.baseCurrency)}
+        </article>
+      </div>
     </div>
   `;
 }
@@ -827,36 +1014,63 @@ function renderPlTable(data) {
   const rows = [
     [t("stocks"), data.plSummary.stocks],
     [t("options"), data.plSummary.options],
-    [t("forex"), data.plSummary.forex],
-    [t("total"), data.plSummary.total]
+    [t("forex"), data.plSummary.forex]
   ];
+  const total = data.plSummary.total;
+  const maxAbs = Math.max(
+    ...rows.flatMap(([, value]) => [Math.abs(value.realized), Math.abs(value.unrealized), Math.abs(value.total)]),
+    Math.abs(total.realized),
+    Math.abs(total.unrealized),
+    Math.abs(total.total),
+    1
+  );
 
   return `
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>${t("category")}</th>
-            <th class="numeric">${t("realized")}</th>
-            <th class="numeric">${t("unrealized")}</th>
-            <th class="numeric">${t("total")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows
-            .map(
-              ([label, value]) => `
-                <tr>
-                  <td class="symbol-cell">${label}</td>
-                  <td class="numeric ${valueTone(value.realized)}">${formatMoney(value.realized, data.baseCurrency)}</td>
-                  <td class="numeric ${valueTone(value.unrealized)}">${formatMoney(value.unrealized, data.baseCurrency)}</td>
-                  <td class="numeric ${valueTone(value.total)}">${formatMoney(value.total, data.baseCurrency)}</td>
-                </tr>
-              `
-            )
-            .join("")}
-        </tbody>
-      </table>
+    <div class="pl-distribution">
+      <div class="pl-total-panel">
+        <div>
+          <span>${t("total")}</span>
+          <strong class="${valueTone(total.total)}">${formatMoney(total.total, data.baseCurrency)}</strong>
+        </div>
+        <div class="pl-total-split">
+          <span>${t("realized")} <b class="${valueTone(total.realized)}">${formatMoney(total.realized, data.baseCurrency)}</b></span>
+          <span>${t("unrealized")} <b class="${valueTone(total.unrealized)}">${formatMoney(total.unrealized, data.baseCurrency)}</b></span>
+        </div>
+      </div>
+      <div class="pl-category-grid">
+        ${rows
+          .map(([label, value]) => renderPlCategory(label, value, data.baseCurrency, maxAbs))
+          .join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderPlCategory(label, value, currency, maxAbs) {
+  return `
+    <div class="pl-category-card">
+      <div class="pl-category-head">
+        <span>${escapeHtml(label)}</span>
+        <strong class="${valueTone(value.total)}">${formatMoney(value.total, currency)}</strong>
+      </div>
+      ${renderPlMetric(t("realized"), value.realized, currency, maxAbs)}
+      ${renderPlMetric(t("unrealized"), value.unrealized, currency, maxAbs)}
+    </div>
+  `;
+}
+
+function renderPlMetric(label, value, currency, maxAbs) {
+  const width = Math.max(3, Math.min(100, (Math.abs(value) / maxAbs) * 100));
+
+  return `
+    <div class="pl-metric">
+      <div class="pl-metric-top">
+        <span>${escapeHtml(label)}</span>
+        <strong class="${valueTone(value)}">${formatMoney(value, currency)}</strong>
+      </div>
+      <div class="pl-metric-track" aria-hidden="true">
+        <span class="pl-metric-fill ${value < 0 ? "is-negative" : "is-positive"}" style="width:${width}%"></span>
+      </div>
     </div>
   `;
 }
@@ -864,23 +1078,50 @@ function renderPlTable(data) {
 function renderTickerTable(rows, currency) {
   if (!rows.length) return `<div class="empty-state">${t("noTickerContribution")}</div>`;
 
+  const visibleRows = rows.slice(0, 12);
+  const maxAbs = Math.max(...visibleRows.map((row) => Math.abs(row.realizedPL)), 1);
+  const positiveTotal = rows
+    .filter((row) => row.realizedPL > 0)
+    .reduce((sum, row) => sum + row.realizedPL, 0);
+  const negativeTotal = rows
+    .filter((row) => row.realizedPL < 0)
+    .reduce((sum, row) => sum + row.realizedPL, 0);
+
   return `
-    <div class="ticker-list" role="table" aria-label="${t("tickerContribution")}">
-      <div class="ticker-row ticker-head" role="row">
-        <span role="columnheader">Ticker</span>
-        <span role="columnheader">${t("realized")}</span>
+    <div class="ticker-contribution" aria-label="${t("tickerContribution")}">
+      <div class="ticker-summary">
+        <div class="ticker-summary-item">
+          <span>${t("positiveContribution")}</span>
+          <strong class="positive">${formatMoney(positiveTotal, currency)}</strong>
+        </div>
+        <div class="ticker-summary-item">
+          <span>${t("negativeContribution")}</span>
+          <strong class="negative">${formatMoney(negativeTotal, currency)}</strong>
+        </div>
       </div>
-      ${rows
-        .slice(0, 12)
+      <div class="ticker-bars" role="list">
+        ${visibleRows
         .map(
-          (row) => `
-            <div class="ticker-row" role="row">
-              <span class="symbol-cell" role="cell">${escapeHtml(row.ticker)}</span>
-              <span class="${valueTone(row.realizedPL)}" role="cell">${formatMoney(row.realizedPL, currency)}</span>
+          (row, index) => {
+            const isNegative = row.realizedPL < 0;
+            const width = Math.max(3, (Math.abs(row.realizedPL) / maxAbs) * 50);
+
+            return `
+            <div class="ticker-bar-item" role="listitem">
+              <div class="ticker-bar-top">
+                <span class="ticker-rank">${String(index + 1).padStart(2, "0")}</span>
+                <span class="symbol-cell">${escapeHtml(row.ticker)}</span>
+                <strong class="${valueTone(row.realizedPL)}">${formatMoney(row.realizedPL, currency)}</strong>
+              </div>
+              <div class="ticker-meter" aria-hidden="true">
+                <span class="ticker-fill ${isNegative ? "is-negative" : "is-positive"}" style="width:${width}%"></span>
+              </div>
             </div>
-          `
+          `;
+          }
         )
         .join("")}
+      </div>
     </div>
   `;
 }
@@ -889,7 +1130,7 @@ function renderMonthlyTable(rows, currency) {
   if (!rows.length) return `<div class="empty-state">${t("noMonthlyDetails")}</div>`;
 
   return `
-    <div class="table-wrap">
+    <div class="table-wrap is-scroll-limited">
       <table>
         <thead>
           <tr>
@@ -930,7 +1171,7 @@ function renderRealizedTrades(rows, currency) {
   if (!rows.length) return `<div class="empty-state">${t("noRealizedTrades")}</div>`;
 
   return `
-    <div class="table-wrap">
+    <div class="table-wrap is-scroll-limited">
       <table>
         <thead>
           <tr>
@@ -1066,6 +1307,7 @@ function bindDashboardEvents() {
 
   const searchInput = document.querySelector("#positionSearch");
   const tableBody = document.querySelector("#positionsTableBody");
+  const positionAssetPie = document.querySelector("#positionAssetPie");
   if (searchInput && tableBody) {
     searchInput.addEventListener("input", () => {
       const query = searchInput.value.trim().toLowerCase();
@@ -1076,12 +1318,16 @@ function bindDashboardEvents() {
           .includes(query);
       });
       tableBody.innerHTML = renderPositionRows(filtered, currentData.baseCurrency);
+      if (positionAssetPie) {
+        positionAssetPie.innerHTML = renderPositionAssetPie(filtered, currentData.baseCurrency);
+      }
     });
   }
 }
 
 function displayGroupName(name) {
   const labels = {
+    Cash: t("cashAsset"),
     Stocks: t("stocks"),
     Options: t("options"),
     Forex: t("forex"),
