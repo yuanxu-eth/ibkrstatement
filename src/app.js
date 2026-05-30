@@ -1,6 +1,6 @@
-import { decodeReportFile } from "./encoding.js?v=2.1.1";
-import { isChineseIbkrReport } from "./reportLanguage.js?v=2.1.1";
-import { parseIbkrReport } from "./parser.js?v=2.1.1";
+import { decodeReportFile } from "./encoding.js?v=2.1.8";
+import { isChineseIbkrReport } from "./reportLanguage.js?v=2.1.8";
+import { parseIbkrReport } from "./parser.js?v=2.1.8";
 
 const app = document.querySelector("#app");
 
@@ -71,6 +71,10 @@ const copy = {
     dataSubtitle: "核对解析区块、汇率和诊断信息，适合排查报表字段缺失。",
     shareDialogTitle: "生成社交分享图",
     shareSize: "分享图尺寸",
+    shareName: "用户名",
+    shareNamePlaceholder: "自定义用户名",
+    hideShareName: "隐藏用户名",
+    hideEndingNav: "隐藏期末净值",
     landscape: "横版",
     portrait: "竖版",
     downloadPng: "下载 PNG",
@@ -143,6 +147,10 @@ const copy = {
     dataSubtitle: "Check parsed sections, rates, and diagnostics for missing statement fields.",
     shareDialogTitle: "Generate Social Share Image",
     shareSize: "Share image size",
+    shareName: "Username",
+    shareNamePlaceholder: "Custom username",
+    hideShareName: "Hide username",
+    hideEndingNav: "Hide ending NAV",
     landscape: "Landscape",
     portrait: "Portrait",
     downloadPng: "Download PNG",
@@ -207,6 +215,9 @@ const state = {
   autoSampleStarted: false,
   shareOpen: false,
   shareFormat: "landscape",
+  shareName: localStorage.getItem("ibkr-share-name") || "",
+  shareHideName: localStorage.getItem("ibkr-share-hide-name") === "1",
+  shareHideNav: localStorage.getItem("ibkr-share-hide-nav") === "1",
   language: localStorage.getItem("ibkr-analytics-language") === "en" ? "en" : "zh",
   theme: localStorage.getItem("ibkr-analytics-theme") === "dark" ? "dark" : "light"
 };
@@ -424,6 +435,20 @@ function renderShareDialog() {
             <button class="segment share-format${state.shareFormat === "landscape" ? " is-active" : ""}" type="button" data-share-format="landscape">${t("landscape")}</button>
             <button class="segment share-format${state.shareFormat === "portrait" ? " is-active" : ""}" type="button" data-share-format="portrait">${t("portrait")}</button>
           </div>
+          <div class="share-controls">
+            <label class="share-name-field">
+              <span>${t("shareName")}</span>
+              <input id="shareNameInput" type="text" value="${escapeAttribute(state.shareName)}" placeholder="${t("shareNamePlaceholder")}" maxlength="32" />
+            </label>
+            <label class="share-check">
+              <input id="shareHideNameInput" type="checkbox"${state.shareHideName ? " checked" : ""} />
+              <span>${t("hideShareName")}</span>
+            </label>
+            <label class="share-check">
+              <input id="shareHideNavInput" type="checkbox"${state.shareHideNav ? " checked" : ""} />
+              <span>${t("hideEndingNav")}</span>
+            </label>
+          </div>
           <button class="primary-button" id="downloadShareImageButton" type="button">${icon("download")}${t("downloadPng")}</button>
         </div>
         <div class="share-preview">
@@ -615,10 +640,10 @@ function renderPositions(data) {
           <div class="card-header">
             <div>
               <h2>持仓资产分布</h2>
-              <p class="card-kicker">按标的市值统计</p>
+              <p class="card-kicker">按标的市值与现金统计</p>
             </div>
           </div>
-          ${renderPositionAssetPie(rows, currency)}
+          ${renderPositionAssetPie(rows, currency, data.nav.cash)}
         </section>
       </div>
     </div>
@@ -792,7 +817,7 @@ function renderPositionsTable(rows, currency) {
   return renderSimpleTable(["标的", "资产", "方向", "数量", "市值", "成本", "未实现", "币种"], tableRows, [false, false, false, true, true, true, true, false], true);
 }
 
-function buildPositionAssetAllocation(positions) {
+function buildPositionAssetAllocation(positions, cash = 0, currency = "USD") {
   const map = new Map();
 
   for (const position of positions) {
@@ -801,6 +826,12 @@ function buildPositionAssetAllocation(positions) {
 
     const name = position.baseSymbol || position.symbol || "Other";
     map.set(name, (map.get(name) || 0) + value);
+  }
+
+  const cashValue = Number.isFinite(cash) && cash > 0 ? cash : 0;
+  if (cashValue && searchMatch(["Cash", "现金", currency])) {
+    const cashLabel = state.language === "en" ? "Cash" : "现金";
+    map.set(cashLabel, (map.get(cashLabel) || 0) + cashValue);
   }
 
   const total = Array.from(map.values()).reduce((sum, value) => sum + value, 0);
@@ -815,8 +846,8 @@ function buildPositionAssetAllocation(positions) {
     .sort((a, b) => b.value - a.value);
 }
 
-function renderPositionAssetPie(positions, currency) {
-  const rows = buildPositionAssetAllocation(positions);
+function renderPositionAssetPie(positions, currency, cash = 0) {
+  const rows = buildPositionAssetAllocation(positions, cash, currency);
   if (!rows.length) return renderEmpty("暂无持仓市值数据。");
 
   let cursor = 0;
@@ -874,7 +905,7 @@ function renderProfitCalendar(rows, month, currency) {
     cells.push(`
       <div class="calendar-cell ${tone}" style="--heat-alpha:${intensity.toFixed(2)}" title="${escapeAttribute(`${month}-${String(day).padStart(2, "0")}: ${signedMoney(value, currency)} · ${formatNumber(row?.tradeCount || 0)} trades`)}">
         <span class="calendar-day">${day}</span>
-        ${row ? `<strong class="${valueClass(value)}">${signedMoney(value, currency)}</strong>` : ""}
+        ${row ? `<strong class="${valueClass(value)}">${signedCalendarAmount(value)}</strong>` : ""}
       </div>
     `);
   }
@@ -1156,6 +1187,24 @@ function bindDashboardEvents() {
     });
   });
 
+  document.querySelector("#shareNameInput")?.addEventListener("input", (event) => {
+    state.shareName = event.currentTarget.value || "";
+    localStorage.setItem("ibkr-share-name", state.shareName);
+    renderShareImagePreview();
+  });
+
+  document.querySelector("#shareHideNameInput")?.addEventListener("change", (event) => {
+    state.shareHideName = event.currentTarget.checked;
+    localStorage.setItem("ibkr-share-hide-name", state.shareHideName ? "1" : "0");
+    renderShareImagePreview();
+  });
+
+  document.querySelector("#shareHideNavInput")?.addEventListener("change", (event) => {
+    state.shareHideNav = event.currentTarget.checked;
+    localStorage.setItem("ibkr-share-hide-nav", state.shareHideNav ? "1" : "0");
+    renderShareImagePreview();
+  });
+
   document.querySelector("#dailyMonthSelect")?.addEventListener("change", (event) => {
     state.dailyMonth = event.currentTarget.value || "";
     renderDashboard();
@@ -1222,7 +1271,7 @@ async function readFile(file) {
 
 async function loadSample() {
   try {
-    const response = await fetch("./samples/ibkr-sample-demo.csv?v=2.1.1");
+    const response = await fetch("./samples/ibkr-sample-demo.csv?v=2.1.8");
     if (!response.ok) throw new Error("sample unavailable");
     parseText(await response.text(), "ibkr-sample-demo.csv");
   } catch (error) {
@@ -1641,8 +1690,10 @@ function legacyShareTheme() {
 
 function buildLegacyShareModel(data) {
   const totalPl = data.plSummary.total;
+  const customName = state.shareName.trim();
   return {
-    name: data.accountInfo.name || "账户视图",
+    name: state.shareHideName ? "*****" : (customName || data.accountInfo.name || "账户视图"),
+    hideNav: state.shareHideNav,
     account: data.accountInfo.account ? maskAccount(data.accountInfo.account) : "未识别账户",
     period: data.accountInfo.period || renderDateRange(data),
     currency: data.baseCurrency || "USD",
@@ -1659,7 +1710,7 @@ function buildLegacyShareModel(data) {
     twr: data.nav.rateOfReturn,
     positions: data.positions.length,
     sections: Object.keys(data.sectionStats).length,
-    allocation: data.assetAllocation || [],
+    allocation: buildPortfolioAllocation(data),
     monthlyRows: data.monthlySummary.slice(-6),
     tickerRows: data.tickerPL.slice(0, 5)
   };
@@ -1668,12 +1719,14 @@ function buildLegacyShareModel(data) {
 function drawLegacyLandscapeShareImage(ctx, model, theme, logoImage) {
   drawLegacyShareBrand(ctx, theme, logoImage, 60, 44, { logoSize: 64, logoY: 40, titleOffsetX: 84, titleOffsetY: 6 });
   drawLegacyShareTopReturn(ctx, model, theme, 650, 84, 330, { size: 82 });
-  drawLegacyShareText(ctx, model.name, 60, 124, {
-    size: 44,
-    weight: 820,
-    color: theme.ink,
-    maxWidth: 650
-  });
+  if (model.name) {
+    drawLegacyShareText(ctx, model.name, 60, 124, {
+      size: 44,
+      weight: 820,
+      color: theme.ink,
+      maxWidth: 650
+    });
+  }
 
   let pillX = 60;
   pillX += drawLegacySharePill(ctx, model.account, pillX, 176, theme) + 10;
@@ -1691,12 +1744,14 @@ function drawLegacyLandscapeShareImage(ctx, model, theme, logoImage) {
 
 function drawLegacyPortraitShareImage(ctx, model, theme, logoImage) {
   drawLegacyShareBrand(ctx, theme, logoImage, 70, 92);
-  drawLegacyShareText(ctx, model.name, 70, 174, {
-    size: 74,
-    weight: 830,
-    color: theme.ink,
-    maxWidth: 640
-  });
+  if (model.name) {
+    drawLegacyShareText(ctx, model.name, 70, 174, {
+      size: 74,
+      weight: 830,
+      color: theme.ink,
+      maxWidth: 640
+    });
+  }
   drawLegacyShareTopReturn(ctx, model, theme, 505, 270, 490);
 
   drawLegacySharePill(ctx, model.account, 70, 288, theme, { scale: 1.18 });
@@ -1779,13 +1834,13 @@ function drawLegacyShareHero(ctx, x, y, width, height, model, theme, options = {
     maxWidth: width - 56
   });
   const valueY = y + (options.valueOffsetY ?? 78);
-  drawLegacyShareText(ctx, formatMoney(model.nav, model.currency), x + 28, valueY, {
+  drawLegacyShareText(ctx, model.hideNav ? "*****" : formatMoney(model.nav, model.currency), x + 28, valueY, {
     size: 50 * scale * (options.valueScale || 1),
     weight: 850,
-    color: theme.ink,
+    color: model.hideNav ? theme.faint : theme.ink,
     maxWidth: width - 56
   });
-  drawLegacyShareText(ctx, `现金 ${formatMoney(model.cash, model.currency)}`, x + 28, y + height - 54, {
+  drawLegacyShareText(ctx, model.hideNav ? "现金 *****" : `现金 ${formatMoney(model.cash, model.currency)}`, x + 28, y + height - 54, {
     size: 18 * scale,
     weight: 700,
     color: theme.muted,
@@ -2206,6 +2261,14 @@ function valueClass(value) {
 function signedMoney(value, currency) {
   const amount = Number.isFinite(value) ? value : 0;
   const formatted = formatMoney(Math.abs(amount), currency);
+  if (amount > 0) return `+${formatted}`;
+  if (amount < 0) return `-${formatted}`;
+  return formatted;
+}
+
+function signedCalendarAmount(value) {
+  const amount = Number.isFinite(value) ? value : 0;
+  const formatted = formatNumber(Math.abs(amount), 2);
   if (amount > 0) return `+${formatted}`;
   if (amount < 0) return `-${formatted}`;
   return formatted;

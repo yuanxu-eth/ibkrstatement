@@ -1649,6 +1649,53 @@ tbody tr:hover {
   background: var(--surface-low);
 }
 
+.share-controls {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.share-name-field {
+  display: grid;
+  gap: 5px;
+  min-width: 180px;
+}
+
+.share-name-field span,
+.share-check span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.share-name-field input {
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  background: var(--surface);
+  font: inherit;
+  font-weight: 800;
+}
+
+.share-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  white-space: nowrap;
+}
+
+.share-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
 .share-preview {
   min-height: 0;
   overflow: auto;
@@ -1836,6 +1883,71 @@ tbody tr:hover {
     flex: 1;
   }
 
+  .daily-calendar-card,
+  .daily-trades-card {
+    min-height: 0;
+  }
+
+  .daily-calendar-card {
+    padding-inline: 12px;
+    overflow: hidden;
+  }
+
+  .calendar-weekdays {
+    gap: 0;
+    margin-bottom: 6px;
+    font-size: 13px;
+  }
+
+  .profit-calendar {
+    gap: 0;
+  }
+
+  .calendar-cell {
+    justify-items: center;
+    min-height: 52px;
+    padding: 5px 1px 4px;
+    border-color: transparent;
+    border-radius: 8px;
+    background: transparent;
+    text-align: center;
+  }
+
+  .calendar-day {
+    color: var(--ink);
+    font-size: 16px;
+    line-height: 20px;
+  }
+
+  .calendar-cell strong {
+    width: 100%;
+    min-width: 0;
+    justify-self: center;
+    text-align: center;
+    white-space: nowrap;
+    font-size: 9px;
+    line-height: 12px;
+    letter-spacing: 0;
+  }
+
+  .calendar-cell.is-positive,
+  .calendar-cell.is-negative {
+    border-color: transparent;
+  }
+
+  .calendar-cell.is-positive {
+    background: rgba(54, 211, 153, var(--heat-alpha));
+  }
+
+  .calendar-cell.is-negative {
+    background: rgba(255, 91, 124, var(--heat-alpha));
+  }
+
+  .calendar-cell.is-empty {
+    background: transparent;
+    min-height: 52px;
+  }
+
   .pl-total-panel {
     grid-template-columns: 1fr;
   }
@@ -1847,5 +1959,15 @@ tbody tr:hover {
   .pl-category-grid {
     grid-template-columns: 1fr;
     overflow-x: visible;
+  }
+
+  .share-toolbar,
+  .share-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .share-name-field {
+    min-width: 0;
   }
 }
