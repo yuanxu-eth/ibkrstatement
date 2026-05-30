@@ -588,6 +588,15 @@ svg {
   font-size: 12px;
 }
 
+.footer-inner a {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.footer-inner a:hover {
+  color: var(--accent);
+}
+
 .dashboard-shell {
   min-height: 100vh;
 }
