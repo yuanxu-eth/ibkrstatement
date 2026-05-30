@@ -3,6 +3,6 @@ node_modules/
 dist/
 outputs/
 *.log
-samples/*.csv
+stitch-reference/chrome-lang-profile/
 .DS_Store
 Thumbs.db

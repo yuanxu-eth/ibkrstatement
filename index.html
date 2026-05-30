@@ -5,120 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Free local IBKR Activity Statement parser. Upload an Interactive Brokers CSV statement in your browser to view NAV, positions, trades, P/L, fees, interest, and portfolio summaries."
+      content="IBKR Analytics Studio is a local-first Interactive Brokers Activity Statement parser for NAV, positions, trades, P/L, fees, interest, and portfolio exposure."
     />
-    <meta name="robots" content="index,follow" />
-    <link rel="canonical" href="https://www.ibkrstatement.site/" />
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://www.ibkrstatement.site/" />
-    <meta property="og:title" content="IBKR Statement Parser | IBKR Report Studio" />
-    <meta
-      property="og:description"
-      content="Parse Interactive Brokers Activity Statement CSV files locally in your browser and generate a private portfolio dashboard."
-    />
-    <meta property="og:site_name" content="IBKR Report Studio" />
-    <meta name="twitter:card" content="summary" />
-    <title>IBKR Statement Parser | IBKR Report Studio</title>
+    <meta name="robots" content="noindex,nofollow" />
+    <title>IBKR Analytics Studio</title>
     <link rel="icon" type="image/svg+xml" href="./assets/icon.svg" />
     <link rel="stylesheet" href="./assets/styles.css" />
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "WebApplication",
-        "name": "IBKR Report Studio",
-        "url": "https://www.ibkrstatement.site/",
-        "applicationCategory": "FinanceApplication",
-        "operatingSystem": "Any",
-        "description": "A privacy-focused IBKR Activity Statement CSV parser that runs locally in the browser and summarizes NAV, positions, trades, P/L, fees, interest, and currency exposure.",
-        "offers": {
-          "@type": "Offer",
-          "price": "0",
-          "priceCurrency": "USD"
-        }
-      }
-    </script>
   </head>
   <body>
-    <div class="app-frame">
-      <header class="topbar" aria-label="Application header">
-        <a class="brand-lockup" href="./index.html" aria-label="IBKR Report Studio">
-          <span class="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24" role="img">
-              <path d="M4 17.5h16" />
-              <path d="M6.25 14.25l3.2-3.35 2.65 2.15 5.65-6.55" />
-              <path d="M16 6.5h1.75V8.3" />
-            </svg>
-          </span>
-          <span>
-            <span class="brand-title">IBKR Report Studio</span>
-            <span class="brand-subtitle">Activity Statement</span>
-          </span>
-        </a>
-        <div class="topbar-actions">
-          <div class="language-switcher" id="languageSwitcher" aria-label="Language selector">
-            <button class="language-option" type="button" data-language="zh">中</button>
-            <button class="language-option" type="button" data-language="en">EN</button>
-          </div>
-          <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">
-            <span class="theme-toggle-option theme-toggle-sun" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="4" />
-                <path d="M12 2v2" />
-                <path d="M12 20v2" />
-                <path d="m4.93 4.93 1.41 1.41" />
-                <path d="m17.66 17.66 1.41 1.41" />
-                <path d="M2 12h2" />
-                <path d="M20 12h2" />
-                <path d="m6.34 17.66-1.41 1.41" />
-                <path d="m19.07 4.93-1.41 1.41" />
-              </svg>
-            </span>
-            <span class="theme-toggle-option theme-toggle-moon" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path d="M20.3 15.2A8.5 8.5 0 0 1 8.8 3.7 8.5 8.5 0 1 0 20.3 15.2Z" />
-              </svg>
-            </span>
-          </button>
-          <button class="ghost-button hidden" id="resetButton" type="button">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 12a8 8 0 1 0 2.35-5.65" />
-              <path d="M4 4v5h5" />
-            </svg>
-            <span id="resetLabel">重置</span>
-          </button>
-        </div>
-      </header>
-
-      <main id="app" class="app-main">
-        <section class="upload-stage">
-          <div class="upload-copy">
-            <p class="eyebrow">IBKR Activity Statement</p>
-            <h1>IBKR Statement Parser</h1>
-            <p>
-              IBKR Report Studio is a free, privacy-focused Interactive Brokers statement parser.
-              Upload an Activity Statement CSV file to analyze NAV, open positions, trades,
-              realized and unrealized P/L, fees, interest, forex P/L, and portfolio allocation.
-              All parsing runs locally in your browser.
-            </p>
-          </div>
-
-          <div class="upload-panel">
-            <h2 class="card-title">Interactive Brokers CSV portfolio dashboard</h2>
-            <p class="guide-note">
-              Supports common IBKR Activity Statement sections including Account Information,
-              Statement, Net Asset Value, Change in NAV, Open Positions, Trades, Realized &
-              Unrealized Performance Summary, Interest, Fees, Forex P/L Details, SYEP Interest,
-              and Mark-to-Market Performance Summary.
-            </p>
-          </div>
-          <p class="home-source-link">
-            <span>Open source</span>
-            <a href="https://github.com/G061206/ibkrstatement" target="_blank" rel="noopener noreferrer">G061206/ibkrstatement</a>
-          </p>
-        </section>
-      </main>
-    </div>
-
+    <div id="app"></div>
     <script type="module" src="./src/app.js"></script>
   </body>
 </html>

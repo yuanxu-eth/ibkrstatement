@@ -6,11 +6,13 @@ export function parseIbkrReport(csvText) {
   const exchangeRates = parseExchangeRates(sections, accountInfo.baseCurrency);
   const positions = parseOpenPositions(sections["Open Positions"], exchangeRates);
   const tradeSummary = analyzeTrades(sections.Trades, exchangeRates);
+  const tradeDetails = parseTradeDetails(sections.Trades, exchangeRates);
   const { plSummary, closedPositions } = parsePlSummary(
     sections["Realized & Unrealized Performance Summary"],
     sections.Trades
   );
   const monthlySummary = analyzeMonthlySummary(sections, exchangeRates);
+  const dailyTradeStats = analyzeDailyTrades(sections.Trades, exchangeRates);
   const tickerPL = analyzeTickerPL(closedPositions);
   const nav = parseNetAssetValue(sections["Net Asset Value"], accountInfo.baseCurrency);
   const navChange = parseNavChange(sections["Change in NAV"]);
@@ -28,10 +30,12 @@ export function parseIbkrReport(csvText) {
     positions,
     closedPositions,
     monthlySummary,
+    dailyTradeStats,
     tickerPL,
     assetAllocation,
     currencyExposure,
     tradeSummary,
+    tradeDetails,
     sectionStats: Object.fromEntries(
       Object.entries(sections).map(([name, rows]) => [name, rows.length])
     ),
@@ -398,6 +402,91 @@ function analyzeTrades(rows = [], exchangeRates) {
   };
 }
 
+function parseTradeDetails(rows = [], exchangeRates) {
+  return (rows || [])
+    .filter((row) => row.DataDiscriminator === "Order")
+    .map((row) => {
+      const date = parseDate(row["Date/Time"]);
+      const currency = row.Currency || "USD";
+      const rate = exchangeRates[currency] || 1;
+      const quantity = toNumber(row.Quantity);
+      const price = toNumber(row["T. Price"]);
+      const proceeds = toNumber(row.Proceeds) * rate;
+      const commission = toNumber(readCommission(row)) * rate;
+      const realizedPL = toNumber(row["Realized P/L"]) * rate;
+      const mtmPL = toNumber(row["MTM P/L"]) * rate;
+
+      return {
+        date: date ? dateKey(date) : "",
+        dateTime: date ? date.toISOString() : "",
+        month: date ? monthKey(date) : "",
+        symbol: row.Symbol || "",
+        baseSymbol: parseOptionSymbol(row.Symbol || "").baseSymbol || row.Symbol || "",
+        assetCategory: row["Asset Category"] || "",
+        currency,
+        side: quantity < 0 ? "Sell" : "Buy",
+        quantity,
+        price,
+        proceeds,
+        grossValue: Math.abs(proceeds),
+        commission,
+        realizedPL,
+        mtmPL,
+        code: row.Code || ""
+      };
+    })
+    .filter((row) => row.date)
+    .sort((a, b) => a.dateTime.localeCompare(b.dateTime));
+}
+
+function analyzeDailyTrades(rows = [], exchangeRates) {
+  const daily = new Map();
+  const ensureDay = (date) => {
+    const key = dateKey(date);
+    if (!daily.has(key)) {
+      daily.set(key, {
+        date: key,
+        month: monthKey(date),
+        day: date.getDate(),
+        tradeCount: 0,
+        realizedPL: 0,
+        mtmPL: 0,
+        grossTradeValue: 0,
+        commissions: 0,
+        symbols: new Set()
+      });
+    }
+    return daily.get(key);
+  };
+
+  for (const trade of rows || []) {
+    if (trade.DataDiscriminator !== "Order") continue;
+
+    const date = parseDate(trade["Date/Time"]);
+    if (!date) continue;
+
+    const currency = trade.Currency || "USD";
+    const rate = exchangeRates[currency] || 1;
+    const row = ensureDay(date);
+    const symbol = trade.Symbol || "";
+
+    row.tradeCount += 1;
+    row.realizedPL += toNumber(trade["Realized P/L"]) * rate;
+    row.mtmPL += toNumber(trade["MTM P/L"]) * rate;
+    row.grossTradeValue += Math.abs(toNumber(trade.Proceeds) * rate);
+    row.commissions += Math.abs(toNumber(readCommission(trade)) * rate);
+    if (symbol) row.symbols.add(symbol);
+  }
+
+  return Array.from(daily.values())
+    .map((row) => ({
+      ...row,
+      symbolCount: row.symbols.size,
+      symbols: Array.from(row.symbols).sort()
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
 function analyzeMonthlySummary(sections, exchangeRates) {
   const monthly = new Map();
   const ensureMonth = (date) => {
@@ -595,4 +684,8 @@ function parseDate(value) {
 
 function monthKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function dateKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }

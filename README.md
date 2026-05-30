@@ -1,395 +1,271 @@
-# IBKR Report Studio
+# IBKR Analytics Studio
 
-这是一个面向 Interactive Brokers Activity Statement 的本地化报表解析工具。用户可以上传或粘贴 IBKR 导出的 CSV/TXT 报表，在浏览器内生成账户概览、NAV、持仓、交易、盈亏、费用、利息、外汇损益和资产配置视图。
+IBKR Analytics Studio 是一个面向 Interactive Brokers Activity Statement 的本地化报表分析工具。它可以在浏览器中直接解析 IBKR 导出的 CSV/TXT 报表，生成账户总览、持仓分析、绩效统计、每日交易统计、数据质量检查和社交分享图。
 
-所有解析都在当前浏览器中完成，不需要后端服务，也不会把用户的报表文件上传到服务器。
-
-线上站点：
-
-```text
-https://www.ibkrstatement.site/
-```
+项目设计目标是：不依赖后端服务、不上传用户报表、不写入数据库，用一个静态前端应用完成从报表读取到可视化分析的完整流程。
 
 ## 功能概览
 
 - 本地解析 IBKR Activity Statement CSV/TXT。
-- 支持文件上传、拖拽上传和手动粘贴 CSV 内容。
-- 自动识别常见文本编码，包括 UTF-8、GB18030/GBK、UTF-16LE 和 UTF-16BE。
-- 检测中文 IBKR 报表并提示用户导出英文报表，避免字段名不匹配导致结果错误。
-- 展示账户信息、报表周期、基础货币、识别到的 CSV 区块数量。
-- 汇总 Net Asset Value、现金、总资产、时间加权收益率。
-- 解析 Change in NAV，展示报表周期内 NAV 变化来源。
-- 解析 Open Positions，展示持仓、数量、方向、市值、成本、未实现盈亏、币种和期权信息。
-- 解析 Trades，统计交易数量、股票/期权/外汇订单、佣金、已实现盈亏和期权权利金。
-- 解析 Realized & Unrealized Performance Summary，生成股票、期权、外汇和总计盈亏分布。
-- 解析 Interest、Fees、Forex P/L Details、SYEP Interest，生成月度收入与成本摘要。
-- 从 Mark-to-Market Performance Summary 中提取 Forex 汇率，用于基础货币换算。
-- 按资产类别和币种展示组合敞口。
-- 按 ticker 统计已平仓贡献。
-- 支持中文/英文界面切换。
-- 支持浅色/深色主题。
-- 支持导出汇总 JSON。
-- 支持生成横版和竖版社交分享 PNG。
+- 支持文件拖放、文件选择、粘贴 CSV 文本和载入示例数据。
+- 自动识别报表账户、周期、基础货币、净值、现金、持仓、交易、费用、利息和外汇损益等信息。
+- 提供总览、持仓、绩效、每日、数据五个分析栏目。
+- 支持中英文界面切换。
+- 支持浅色和暗色主题。
+- 支持导出结构化 JSON。
+- 支持生成横版和竖版 PNG 分享图。
+- 所有处理均在当前浏览器内完成。
 
-## 隐私说明
+## 主要页面
 
-IBKR Report Studio 不包含后端接口。报表文件通过浏览器的 FileReader API 读取，解析逻辑运行在用户本地浏览器中。
+### 账户总览
 
-默认行为：
-
-- 不上传原始 CSV/TXT 文件。
-- 不存储用户账户数据。
-- 不使用数据库。
-- 不依赖第三方分析脚本。
-- 导出的 JSON 和 PNG 由用户主动在浏览器中生成并下载。
-
-如果后续接入统计、日志或错误上报，应在 README 和页面隐私说明中同步更新。
-
-## 支持的报表格式
-
-推荐从 IBKR Client Portal 导出英文 Activity Statement，格式选择 CSV。
-
-当前解析器主要识别 IBKR 英文字段名和区块名。中文报表会被检测并提示重新导出英文版本。
-
-建议导出时包含以下区块：
-
-- Account Information
-- Statement
-- Net Asset Value
-- Change in NAV
-- Open Positions
-- Trades
-- Realized & Unrealized Performance Summary
-- Interest
-- Fees
-- Forex P/L Details
-- Stock Yield Enhancement Program Securities Lent Interest Details
-- Mark-to-Market Performance Summary
-- Financial Instrument Information
-
-其中部分区块缺失时，应用仍会尽量生成可用视图，但相关指标会为空或出现诊断提示。
-
-## 如何从 IBKR 导出报表
-
-1. 登录 IBKR Client Portal。
-2. 打开顶部菜单 `Performance & Reports`。
-3. 进入 `Statements`。
-4. 找到 `Activity Statement`，点击 `Run`。
-5. 选择账户和日期范围。
-6. 将语言设置为 English。
-7. 将格式设置为 CSV。
-8. 生成并下载报表文件。
-9. 回到 IBKR Report Studio 上传 CSV/TXT 文件，或直接粘贴报表内容。
-
-注意：不要用 Excel 打开并重新保存 CSV。电子表格软件可能会修改日期、数字、引号或编码格式，从而影响解析。
-
-## 页面使用流程
-
-1. 打开网站。
-2. 选择报表文件，拖拽报表文件，或粘贴 CSV 内容。
-3. 应用读取并自动解码文件内容。
-4. 如果检测到中文报表，应用会提示重新导出英文报表。
-5. 解析成功后进入 Dashboard。
-6. 在 `总览`、`持仓`、`收益`、`数据` 之间切换查看结果。
-7. 可点击 `导出 JSON` 下载结构化摘要。
-8. 可点击 `分享图` 生成横版或竖版 PNG。
-9. 可点击 `更换文件` 回到上传页。
-
-## Dashboard 说明
-
-### 总览
-
-总览页用于快速判断报表整体情况：
+账户总览用于快速查看报表核心状态，包括：
 
 - 期末净值
 - 现金
 - 总盈亏
 - 时间加权收益
-- 交易订单数量
+- 交易订单数
 - 当前持仓数量
-- 资产类别数量
-- 识别到的报表区块数量
-- 月度净贡献
+- 已识别 CSV 区块
+- 佣金费用
 - 资产配置
+- 币种敞口
 - NAV 变化
-- 解析诊断和警告
+- 包含现金的资产配置占比饼图
 
-### 持仓
+资产配置占比会把 Open Positions 的市值和 Net Asset Value 中的现金合并计算，因此可以看到股票、现金等组合构成。
 
-持仓页展示当前 Open Positions：
+### 持仓明细
 
-- 标的
-- 资产类别
-- 多头/空头方向
-- 数量
-- 市值
-- 成本
+持仓页面用于分析当前 Open Positions：
+
+- 按资产类别汇总持仓
+- 按多头/空头方向汇总
+- 按币种汇总
+- 展示逐项 Open Positions 明细
+- 在页面底部展示按标的市值统计的持仓饼图
+
+持仓饼图按每个标的的当前市值统计，不包含现金，适合观察持仓集中度。
+
+### 绩效概览
+
+绩效页面用于查看报表周期内收益表现：
+
+- 已实现盈亏
 - 未实现盈亏
-- 币种
-- 期权类型、到期日、行权价
+- 总盈亏
+- 盈亏明细
+- 主要贡献者
+- 月度收入与支出
+- 已实现交易排行
 
-持仓页支持按标的、基础标的、资产类别和币种搜索过滤。
+页面标题和说明不会写死为年初至今，而是按照导入报表的实际周期展示。
 
-### 收益
+### 每日统计
 
-收益页展示 P/L 相关信息：
+每日页面基于 Trades 区块中的逐笔交易记录生成：
 
-- 股票、期权、外汇的已实现和未实现盈亏。
-- 总盈亏拆分。
-- ticker 已平仓贡献排行。
-- 月度收入与成本明细。
-- 已实现交易排行。
+- 盈亏日历
+- 每日交易笔数柱状图
+- 总交易笔数
+- 总成交额
+- 日均交易数
+- 已实现盈亏
+- 所选月份的交易流水列表
 
-### 数据
+月份下拉会根据报表中实际存在的交易月份生成。交易流水表会随月份切换而更新，显示该月份所有交易，包括成交时间、代码、买卖方向、资产类别、数量、成交价、成交金额、佣金和已实现盈亏。
 
-数据页用于排查和验证：
+### 数据质量
 
-- 已解析的 CSV 区块。
-- 基础货币汇率表。
-- 币种敞口。
-- 解析警告。
+数据质量页面用于排查报表解析情况：
+
+- 已解析 CSV 区块
+- 基础货币换算汇率
+- 解析诊断
+
+如果缺少关键区块，例如 Account Information、Net Asset Value、Trades、Open Positions 或 Realized & Unrealized Performance Summary，页面会给出诊断提示。
+
+## 支持的数据来源
+
+推荐从 IBKR Client Portal 导出英文 Activity Statement：
+
+1. 登录 IBKR Client Portal。
+2. 进入 Performance & Reports -> Statements。
+3. 选择 Activity Statement 并点击 Run。
+4. 将 Language 设置为 English。
+5. 将 Format 设置为 CSV。
+6. 下载文件后在本项目中上传或粘贴内容。
+
+当前解析器主要面向英文 IBKR Activity Statement CSV。中文导出的报表字段名可能不同，项目会尝试检测并提示重新导出英文版本。
+
+## 已解析的主要区块
+
+项目会读取并使用以下区块中的数据：
+
+- Account Information
+- Net Asset Value
+- Change in NAV
+- Open Positions
+- Trades
+- Realized & Unrealized Performance Summary
+- Forex P/L Details
+- Interest
+- Fees
+- Stock Yield Enhancement Program Securities Lent Interest Details
+- Mark-to-Market Performance Summary
+- Base Currency Exchange Rate
+
+不同账户权限、报表配置和报表周期可能导致区块缺失。缺失区块不会阻止页面加载，但对应指标可能为空或显示诊断提示。
+
+## Trades 明细字段
+
+每日统计和交易流水依赖 Trades 区块中的 Order 行。常见字段包括：
+
+- Asset Category
+- Currency
+- Symbol
+- Date/Time
+- Quantity
+- T. Price
+- C. Price
+- Proceeds
+- Comm/Fee
+- Basis
+- Realized P/L
+- MTM P/L
+- Code
+
+项目会按交易日期聚合每日已实现盈亏、交易笔数、成交额和佣金。
 
 ## 本地运行
 
-项目没有构建步骤，也没有运行时依赖。只需要 Node.js 用来启动本地静态服务器和做语法检查。
-
-建议使用 Node.js 18 或更高版本。
-
-安装依赖：
+项目是静态前端应用，无需安装运行时依赖。只需要本机有 Node.js，用于启动本地静态服务器。
 
 ```powershell
-cd "E:\IBKR Reader\ibkr-report-studio"
-npm install
-```
-
-启动本地服务：
-
-```powershell
+cd "E:\IBKR Reader\ibkr-analytics-studio"
 npm run serve
 ```
 
-默认地址：
+默认访问地址：
 
 ```text
-http://127.0.0.1:4177/
+http://127.0.0.1:4187/
 ```
 
-指定端口：
+不要优先使用 `localhost`。在部分 Windows 环境中，`localhost` 可能解析到 IPv6 地址，导致访问不到只监听 `127.0.0.1` 的本地服务。
 
-```powershell
-$env:PORT=4180
-npm run serve
-```
+## 检查代码
 
-语法检查：
+项目没有构建步骤，当前检查主要是 JavaScript 语法检查：
 
 ```powershell
 npm run check
 ```
 
-当前 `check` 会检查：
+该命令会检查：
 
 - `src/encoding.js`
 - `src/parser.js`
 - `src/reportLanguage.js`
 - `src/app.js`
 
-## 部署
-
-这是一个纯静态项目，可以部署到 Vercel、Cloudflare Pages、Netlify、GitHub Pages 或任意静态文件服务器。
-
-当前仓库包含 Vercel 配置：
-
-```json
-{
-  "framework": null,
-  "installCommand": "",
-  "buildCommand": null,
-  "outputDirectory": "."
-}
-```
-
-也包含 apex 域名到 www 域名的永久重定向：
+## 目录结构
 
 ```text
-https://ibkrstatement.site/* -> https://www.ibkrstatement.site/*
-```
-
-部署后建议检查：
-
-```text
-https://www.ibkrstatement.site/
-https://ibkrstatement.site/
-```
-
-期望结果：
-
-- 首页返回 200。
-- apex 域名跳转到 www 域名。
-
-## 项目结构
-
-```text
-ibkr-report-studio/
+ibkr-analytics-studio/
 ├─ assets/
-│  ├─ icon.svg
 │  ├─ ibkr-logo.svg
+│  ├─ icon.svg
 │  ├─ statement-preview.svg
 │  └─ styles.css
+├─ samples/
+│  ├─ ibkr-sample-demo.csv
+│  └─ ibkr-sample-9999.csv
 ├─ src/
 │  ├─ app.js
 │  ├─ encoding.js
 │  ├─ parser.js
 │  └─ reportLanguage.js
+├─ stitch-reference/
 ├─ index.html
 ├─ package.json
-├─ README.md
 ├─ serve.mjs
+├─ sitemap.xml
 └─ vercel.json
 ```
 
-## 核心模块
+### 核心文件说明
 
-### `src/app.js`
+- `src/app.js`：应用 UI、交互、图表、分享图和导出逻辑。
+- `src/parser.js`：IBKR CSV 解析、账户指标、持仓、交易、月度和每日统计。
+- `src/encoding.js`：文件读取和文本编码处理。
+- `src/reportLanguage.js`：报表语言检测。
+- `assets/styles.css`：完整页面样式、暗色主题、响应式布局。
+- `serve.mjs`：本地静态文件服务器。
+- `samples/`：示例 IBKR 报表，用于本地测试。
+- `stitch-reference/`：设计参考和验证截图，不参与运行逻辑。
 
-负责浏览器交互和页面渲染：
+## 隐私说明
 
-- 语言切换。
-- 主题切换。
-- 文件上传和拖拽。
-- 粘贴 CSV 内容。
-- 调用编码识别、中文报表检测和解析器。
-- 渲染 Dashboard。
-- 导出 JSON。
-- 生成分享图。
+IBKR Analytics Studio 默认只在当前浏览器内处理数据：
 
-### `src/parser.js`
+- 上传的 CSV/TXT 文件不会发送到服务器。
+- 粘贴的 CSV 文本不会写入数据库。
+- 解析结果只保存在当前页面状态中。
+- JSON 和 PNG 只有在用户主动点击时才会在浏览器中生成并下载。
 
-负责 IBKR CSV 解析和数据建模：
+如果部署到静态托管平台，仍建议使用 HTTPS，并避免把真实报表样本提交到公开仓库。
 
-- 解析 CSV 行和区块。
-- 提取账户信息。
-- 提取基础货币和汇率。
-- 提取 NAV 和 NAV 变化。
-- 提取 Open Positions。
-- 汇总 Trades。
-- 汇总 Realized & Unrealized Performance Summary。
-- 构建月度摘要。
-- 构建 ticker P/L 贡献。
-- 构建资产配置和币种敞口。
-- 生成诊断警告。
+## 分享图
 
-### `src/encoding.js`
+项目支持生成两种 PNG 分享图：
 
-负责读取用户文件时的编码识别：
+- 横版：适合社交媒体或宽屏展示。
+- 竖版：适合移动端长图展示。
 
-- BOM 检测。
-- UTF-16 空字节模式检测。
-- UTF-8、GB18030/GBK、UTF-16LE、UTF-16BE 候选解码。
-- 根据 IBKR 标记、Header/Data 行和乱码字符评分选择最佳结果。
+分享图使用浏览器 Canvas 生成，内容来自当前解析后的报表摘要，包括账户周期、净值、盈亏、资产配置、月度趋势和主要贡献者等。
 
-### `src/reportLanguage.js`
+## 部署
 
-负责检测中文 IBKR 报表：
+项目可以部署到任何静态托管平台，例如 Vercel、Netlify、GitHub Pages 或本地内网静态服务器。
 
-- 判断文本中是否包含 CJK 字符。
-- 检测中文区块、行类型和字段名。
-- 如果不是英文 IBKR 标准结构，则提示用户导出英文报表。
+由于应用无需后端 API，部署时只需要托管以下文件即可：
 
-### `serve.mjs`
+- `index.html`
+- `assets/`
+- `src/`
+- `samples/`，如果需要保留示例数据
+- `robots.txt`
+- `sitemap.xml`
 
-一个极简 Node.js 静态服务器：
+Vercel 配置文件已包含在 `vercel.json` 中。
 
-- 默认监听 `127.0.0.1:4177`。
-- 支持 `PORT` 环境变量。
-- 根据扩展名返回基础 MIME 类型。
-- 防止路径穿越访问项目目录外文件。
+## 已知限制
 
-## 数据字段和计算说明
+- 主要支持英文 IBKR Activity Statement CSV。
+- 不同 IBKR 报表模板可能导致字段缺失或字段名变化。
+- 税务、保证金、期权希腊值和公司行动等高级报表内容目前不是重点分析对象。
+- 页面中的统计结果只用于投资复盘和数据查看，不构成投资建议或税务建议。
+- 分享图是摘要展示，不应替代完整报表。
 
-### 汇率
+## 开发建议
 
-应用从 `Mark-to-Market Performance Summary` 的 Forex 行中读取 `Current Price`，建立非基础货币到基础货币的换算表。
+新增功能时建议遵循以下顺序：
 
-如果缺失对应币种汇率，则默认按 1 处理。复杂多币种账户建议确保报表包含 Mark-to-Market Performance Summary。
-
-### 期权识别
-
-应用基于 IBKR 常见期权符号格式解析：
-
-```text
-SYMBOL EXPIRY STRIKE P/C
-```
-
-示例：
-
-```text
-AAPL 20250117 180 C
-TSLA 20250620 200 P
-```
-
-解析结果包括：
-
-- 基础标的
-- 是否期权
-- Call/Put
-- 行权价
-- 到期日
-
-### 月度摘要
-
-月度摘要综合以下来源：
-
-- Trades
-- Forex P/L Details
-- Stock Yield Enhancement Program Securities Lent Interest Details
-- Interest
-- Fees
-
-净额计算逻辑：
-
-```text
-optionsPL + stocksPL + forexPL + syepIncome + interest - commissions - fees
-```
-
-### 诊断警告
-
-如果关键区块缺失，应用会在数据页和总览页给出警告。例如：
-
-- 未找到 Account Information 区块。
-- 未找到 Net Asset Value 区块。
-- 未找到 Trades 区块。
-- 未找到 Open Positions 区块。
-- 文件结构不像标准 IBKR Activity Statement CSV。
-
-## 常见问题
-
-### 为什么中文 IBKR 报表不能直接解析？
-
-当前解析器主要匹配英文区块名和字段名。中文报表的字段翻译可能随 IBKR 界面语言、地区和版本变化，直接解析容易产生错误结果。
-
-因此应用检测到中文报表后会提示重新导出英文 Activity Statement。
-
-### 为什么上传后显示缺少区块？
-
-通常是导出报表时没有包含对应 section。请重新导出 Activity Statement，并确认包含 Net Asset Value、Open Positions、Trades、Realized & Unrealized Performance Summary 等区块。
-
-### 为什么数值和 IBKR 页面不完全一致？
-
-可能原因包括：
-
-- 报表日期范围不同。
-- 缺少部分 section。
-- 多币种汇率数据缺失。
-- IBKR 报表中的某些费用或调整项不在当前解析范围内。
-- 浏览器本地解析和 IBKR 后台展示口径不同。
+1. 先在 `src/parser.js` 中补充结构化数据。
+2. 再在 `src/app.js` 中新增渲染函数。
+3. 最后在 `assets/styles.css` 中补齐样式和响应式规则。
+4. 使用 `npm run check` 做语法检查。
+5. 用 `samples/` 中的示例报表手动验证页面。
 
 ## 免责声明
 
-IBKR Report Studio 仅用于个人报表整理、学习和辅助分析，不构成投资建议、税务建议或财务建议。
+本项目不是 Interactive Brokers 官方产品，也不与 Interactive Brokers LLC 存在官方关联。所有商标和产品名称归其各自所有者所有。
 
-解析结果可能因为 IBKR 报表格式变化、字段缺失、汇率缺失、日期范围选择、浏览器解析差异或程序缺陷而不准确。请以 Interactive Brokers 官方报表和专业顾问意见为准。
+本工具仅用于本地报表解析和个人数据分析。用户应自行核对原始 IBKR Activity Statement，任何投资、税务或会计决策都应以官方报表和专业意见为准。
 
-## License
+## 许可证
 
-This project is licensed under the MIT License. See [LICENSE](./LICENSE) for details.
+本项目基于 MIT License 开源，详见 `LICENSE`。
