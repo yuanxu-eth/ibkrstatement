@@ -4,7 +4,11 @@ export function parseIbkrReport(csvText) {
   const sections = collectSections(csvText);
   const accountInfo = parseAccountInfo(sections);
   const exchangeRates = parseExchangeRates(sections, accountInfo.baseCurrency);
-  const positions = parseOpenPositions(sections["Open Positions"], exchangeRates);
+  const dividendIncome = parseDividendIncome(sections, exchangeRates);
+  const positions = applyPositionDividends(
+    parseOpenPositions(sections["Open Positions"], exchangeRates),
+    dividendIncome.bySymbol
+  );
   const tradeSummary = analyzeTrades(sections.Trades, exchangeRates);
   const tradeDetails = parseTradeDetails(sections.Trades, exchangeRates);
   const { plSummary, closedPositions } = parsePlSummary(
@@ -27,6 +31,7 @@ export function parseIbkrReport(csvText) {
     nav,
     navChange,
     plSummary,
+    dividendIncome,
     positions,
     closedPositions,
     monthlySummary,
@@ -333,6 +338,7 @@ function parseOpenPositions(rows = [], exchangeRates) {
         costBasis: toNumber(row["Cost Basis"]) * rate,
         closePrice: toNumber(row["Close Price"]),
         value: toNumber(row.Value) * rate,
+        dividends: 0,
         unrealizedPL: toNumber(row["Unrealized P/L"]) * rate,
         currency,
         isOption: option.isOption,
@@ -342,6 +348,45 @@ function parseOpenPositions(rows = [], exchangeRates) {
       };
     })
     .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+}
+
+function parseDividendIncome(sections, exchangeRates) {
+  const bySymbol = {};
+  let total = 0;
+
+  for (const row of sections.Dividends || []) {
+    if (row.Currency === "Total") continue;
+
+    const symbol = parseDividendSymbol(row);
+    if (!symbol) continue;
+
+    const currency = row.Currency || "USD";
+    const value = toNumber(row.Amount) * (exchangeRates[currency] || 1);
+    if (!value) continue;
+
+    bySymbol[symbol] = (bySymbol[symbol] || 0) + value;
+    total += value;
+  }
+
+  return {
+    bySymbol,
+    total
+  };
+}
+
+function applyPositionDividends(positions, dividendBySymbol) {
+  return positions.map((position) => {
+    const symbols = new Set([
+      position.symbol,
+      position.baseSymbol,
+      parseOptionSymbol(position.symbol).baseSymbol
+    ].filter(Boolean));
+    const dividends = Array.from(symbols).reduce((sum, symbol) => sum + (dividendBySymbol[symbol] || 0), 0);
+    return {
+      ...position,
+      dividends
+    };
+  });
 }
 
 function analyzeTrades(rows = [], exchangeRates) {
@@ -644,6 +689,20 @@ function parseOptionSymbol(symbol) {
   }
 
   return { isOption: false, baseSymbol };
+}
+
+function parseDividendSymbol(row = {}) {
+  const explicitSymbol = String(row.Symbol || "").trim();
+  if (explicitSymbol && explicitSymbol !== "Total") {
+    return parseOptionSymbol(explicitSymbol).baseSymbol || explicitSymbol;
+  }
+
+  const description = String(row.Description || "").trim();
+  const parenMatch = description.match(/^([A-Z][A-Z0-9.\-]{0,12})\s*\(/);
+  if (parenMatch) return parenMatch[1];
+
+  const textMatch = description.match(/\b([A-Z][A-Z0-9.\-]{0,12})\b(?=.*\b(?:Cash Dividend|Dividend|Payment in Lieu)\b)/i);
+  return textMatch ? textMatch[1] : "";
 }
 
 function readCommission(row) {

@@ -1,6 +1,6 @@
-import { decodeReportFile } from "./encoding.js?v=2.1.8";
-import { isChineseIbkrReport } from "./reportLanguage.js?v=2.1.8";
-import { parseIbkrReport } from "./parser.js?v=2.1.8";
+import { decodeReportFile } from "./encoding.js?v=2.1.9";
+import { isChineseIbkrReport } from "./reportLanguage.js?v=2.1.9";
+import { parseIbkrReport } from "./parser.js?v=2.1.9";
 
 const app = document.querySelector("#app");
 
@@ -811,10 +811,11 @@ function renderPositionsTable(rows, currency) {
     formatNumber(row.quantity, 4),
     formatMoney(row.value, row.currency || currency),
     formatMoney(row.costBasis, row.currency || currency),
+    `<span class="${valueClass(row.dividends)}">${formatMoney(row.dividends || 0, row.currency || currency)}</span>`,
     `<span class="${valueClass(row.unrealizedPL)}">${signedMoney(row.unrealizedPL, row.currency || currency)}</span>`,
     escapeHtml(row.currency || currency)
   ]);
-  return renderSimpleTable(["标的", "资产", "方向", "数量", "市值", "成本", "未实现", "币种"], tableRows, [false, false, false, true, true, true, true, false], true);
+  return renderSimpleTable(["标的", "资产", "方向", "数量", "市值", "成本", "股息", "未实现", "币种"], tableRows, [false, false, false, true, true, true, true, true, false], true);
 }
 
 function buildPositionAssetAllocation(positions, cash = 0, currency = "USD") {
@@ -1271,7 +1272,7 @@ async function readFile(file) {
 
 async function loadSample() {
   try {
-    const response = await fetch("./samples/ibkr-sample-demo.csv?v=2.1.8");
+    const response = await fetch("./samples/ibkr-sample-demo.csv?v=2.1.9");
     if (!response.ok) throw new Error("sample unavailable");
     parseText(await response.text(), "ibkr-sample-demo.csv");
   } catch (error) {
