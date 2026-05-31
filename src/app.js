@@ -540,7 +540,7 @@ function renderPerformance(data) {
           ${renderPlDistribution(data)}
         </section>
         <section class="table-card span-6">
-          <div class="table-header"><h2>主要贡献者</h2><span class="pill">${formatNumber(data.tickerPL.length)} tickers</span></div>
+          <div class="table-header"><h2>全部标的盈亏</h2><span class="pill">${formatNumber(data.tickerPL.length)} tickers</span></div>
           ${renderTopContributors(data, currency)}
         </section>
         <section class="dashboard-card chart-card span-12">
@@ -775,19 +775,29 @@ function renderPlMetric(label, value, currency, maxAbs) {
 }
 
 function renderTopContributors(data, currency) {
-  const totalAbs = data.tickerPL.reduce((sum, row) => sum + Math.abs(row.realizedPL), 0) || 1;
-  const rows = data.tickerPL
+  const filteredTickerPL = data.tickerPL
     .filter((row) => searchMatch([row.ticker]))
     .slice()
-    .sort((a, b) => Math.abs(b.realizedPL) - Math.abs(a.realizedPL))
-    .slice(0, 8)
-    .map((row) => [
-      `<strong>${escapeHtml(row.ticker)}</strong>`,
-      `<span class="${valueClass(row.realizedPL)}">${signedMoney(row.realizedPL, currency)}</span>`,
-      `${formatPercent((Math.abs(row.realizedPL) / totalAbs) * 100)}`
-    ]);
+    .sort((a, b) => Math.abs(b.totalPL) - Math.abs(a.totalPL));
 
-  return rows.length ? renderSimpleTable(["代码", "总盈亏", "贡献百分比"], rows, [false, true, true], true) : renderEmpty("暂无 ticker 贡献数据。");
+  const totalAbs = filteredTickerPL.reduce((sum, row) => sum + Math.abs(row.totalPL), 0) || 1;
+
+  const rows = filteredTickerPL.map((row) => [
+    `<strong>${escapeHtml(row.ticker)}</strong>`,
+    `<span class="${valueClass(row.totalPL)}">${signedMoney(row.totalPL, currency)}</span>`,
+    `<span class="${valueClass(row.realizedPL)}">${signedMoney(row.realizedPL, currency)}</span>`,
+    `<span class="${valueClass(row.unrealizedPL)}">${signedMoney(row.unrealizedPL, currency)}</span>`,
+    `${formatPercent((Math.abs(row.totalPL) / totalAbs) * 100)}`
+  ]);
+
+  return rows.length
+    ? renderSimpleTable(
+        ["代码", "总盈亏", "已实现", "未实现", "贡献百分比"],
+        rows,
+        [false, true, true, true, true],
+        true
+      )
+    : renderEmpty("暂无 ticker 盈亏数据。");
 }
 
 function renderRealizedTrades(data, currency) {
@@ -1955,7 +1965,7 @@ function drawLegacyShareAllocation(ctx, x, y, width, height, model, theme, optio
 function drawLegacyShareTickerList(ctx, x, y, width, height, model, theme, options = {}) {
   const scale = options.scale || 1;
   const rows = model.tickerRows.slice(0, Math.max(3, Math.floor((height - 58) / (28 * scale))));
-  const maxAbs = Math.max(...rows.map((row) => Math.abs(row.realizedPL)), 1);
+  const maxAbs = Math.max(...rows.map((row) => Math.abs(row.totalPL)), 1);
 
   drawLegacySharePanel(ctx, x, y, width, height, theme);
   drawLegacyShareText(ctx, "贡献排行", x + 24, y + 22, {
@@ -1978,7 +1988,7 @@ function drawLegacyShareTickerList(ctx, x, y, width, height, model, theme, optio
   const rowHeight = options.rowHeight || 28 * scale;
   rows.forEach((row, index) => {
     const rowY = y + 62 + index * rowHeight;
-    const amount = formatMoney(row.realizedPL, model.currency);
+    const amount = formatMoney(row.totalPL, model.currency);
     drawLegacyShareText(ctx, String(index + 1).padStart(2, "0"), x + 24, rowY + 6 * scale, {
       size: 14 * scale,
       weight: 800,
@@ -1993,7 +2003,7 @@ function drawLegacyShareTickerList(ctx, x, y, width, height, model, theme, optio
     drawLegacyShareText(ctx, amount, x + width - 24, rowY, {
       size: 17 * scale,
       weight: 800,
-      color: legacyShareValueColor(row.realizedPL, theme),
+      color: legacyShareValueColor(row.totalPL, theme),
       align: "right",
       maxWidth: width * 0.36
     });
@@ -2005,7 +2015,7 @@ function drawLegacyShareTickerList(ctx, x, y, width, height, model, theme, optio
     drawLegacyRoundedPath(ctx, trackX, trackY, trackW, 4 * scale, 6);
     ctx.fill();
     ctx.fillStyle = legacyShareValueColor(row.realizedPL, theme);
-    drawLegacyRoundedPath(ctx, trackX, trackY, Math.max(6, trackW * (Math.abs(row.realizedPL) / maxAbs)), 4 * scale, 6);
+    drawLegacyRoundedPath(ctx, trackX, trackY, Math.max(6, trackW * (Math.abs(row.totalPL) / maxAbs)), 4 * scale, 6);
     ctx.fill();
   });
 }
