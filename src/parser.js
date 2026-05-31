@@ -17,7 +17,7 @@ export function parseIbkrReport(csvText) {
   );
   const monthlySummary = analyzeMonthlySummary(sections, exchangeRates);
   const dailyTradeStats = analyzeDailyTrades(sections.Trades, exchangeRates);
-  const tickerPL = analyzeTickerPL(closedPositions);
+  const tickerPL = analyzeTickerPL(closedPositions, positions);
   const nav = parseNetAssetValue(sections["Net Asset Value"], accountInfo.baseCurrency);
   const navChange = parseNavChange(sections["Change in NAV"]);
   const assetAllocation = summarizePositions(positions, "assetCategory");
@@ -622,17 +622,40 @@ function analyzeMonthlySummary(sections, exchangeRates) {
     .sort((a, b) => a.month.localeCompare(b.month));
 }
 
-function analyzeTickerPL(closedPositions) {
+function analyzeTickerPL(closedPositions, positions = []) {
   const map = new Map();
 
+  const ensureTicker = (ticker) => {
+    const key = ticker || "Unknown";
+    if (!map.has(key)) {
+      map.set(key, {
+        ticker: key,
+        realizedPL: 0,
+        unrealizedPL: 0,
+        totalPL: 0
+      });
+    }
+    return map.get(key);
+  };
+
   for (const position of closedPositions) {
-    const key = position.baseSymbol || position.symbol;
-    map.set(key, (map.get(key) || 0) + position.realizedPL);
+    const ticker = position.baseSymbol || position.symbol;
+    const row = ensureTicker(ticker);
+    row.realizedPL += position.realizedPL || 0;
   }
 
-  return Array.from(map.entries())
-    .map(([ticker, realizedPL]) => ({ ticker, realizedPL }))
-    .sort((a, b) => Math.abs(b.realizedPL) - Math.abs(a.realizedPL));
+  for (const position of positions) {
+    const ticker = position.baseSymbol || position.symbol;
+    const row = ensureTicker(ticker);
+    row.unrealizedPL += position.unrealizedPL || 0;
+  }
+
+  return Array.from(map.values())
+    .map((row) => ({
+      ...row,
+      totalPL: row.realizedPL + row.unrealizedPL
+    }))
+    .sort((a, b) => Math.abs(b.totalPL) - Math.abs(a.totalPL));
 }
 
 function summarizePositions(positions, key) {
