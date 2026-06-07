@@ -1,6 +1,6 @@
-import { decodeReportFile } from "./encoding.js?v=2.1.9";
-import { isChineseIbkrReport } from "./reportLanguage.js?v=2.1.9";
-import { parseIbkrReport } from "./parser.js?v=2.1.9";
+import { decodeReportFile } from "./encoding.js?v=2.1.6";
+import { isChineseIbkrReport } from "./reportLanguage.js?v=2.1.6";
+import { parseIbkrReport } from "./parser.js?v=2.1.6";
 
 const app = document.querySelector("#app");
 
@@ -832,7 +832,7 @@ function buildPositionAssetAllocation(positions, cash = 0, currency = "USD") {
   const map = new Map();
 
   for (const position of positions) {
-    const value = Math.abs(position.value);
+    const value = Math.abs(position.baseValue ?? position.value);
     if (!value) continue;
 
     const name = position.baseSymbol || position.symbol || "Other";
@@ -975,9 +975,9 @@ function renderDailyTradeTable(rows, currency) {
     escapeHtml(row.assetCategory || "-"),
     formatNumber(Math.abs(row.quantity), 4),
     formatMoney(row.price, row.currency || currency),
-    formatMoney(row.grossValue, currency),
-    formatMoney(row.commission, currency),
-    `<span class="${valueClass(row.realizedPL)}">${signedMoney(row.realizedPL, currency)}</span>`
+    formatMoney(row.grossValue, row.currency || currency),
+    formatMoney(row.commission, row.currency || currency),
+    `<span class="${valueClass(row.realizedPL)}">${signedMoney(row.realizedPL, row.currency || currency)}</span>`
   ]);
   return renderSimpleTable(["成交时间", "股票代码", "方向", "资产", "数量", "成交价", "成交金额", "佣金", "已实现盈亏"], tableRows, [false, false, false, false, true, true, true, true, true], true);
 }
@@ -1282,7 +1282,7 @@ async function readFile(file) {
 
 async function loadSample() {
   try {
-    const response = await fetch("./samples/ibkr-sample-demo.csv?v=2.1.9");
+    const response = await fetch("./samples/ibkr-sample-demo.csv?v=2.1.6");
     if (!response.ok) throw new Error("sample unavailable");
     parseText(await response.text(), "ibkr-sample-demo.csv");
   } catch (error) {
@@ -1384,265 +1384,6 @@ async function downloadShareImage() {
     link.remove();
     URL.revokeObjectURL(url);
   }, "image/png");
-}
-
-function drawShareImageDraft(canvas, data, format) {
-  const size = SHARE_IMAGE_SIZES[format] || SHARE_IMAGE_SIZES.landscape;
-  canvas.width = size.width;
-  canvas.height = size.height;
-  const ctx = canvas.getContext("2d");
-  const theme = shareTheme();
-  const model = buildShareModel(data);
-
-  ctx.clearRect(0, 0, size.width, size.height);
-  ctx.fillStyle = theme.bg;
-  ctx.fillRect(0, 0, size.width, size.height);
-
-  if (format === "portrait") {
-    drawSharePortrait(ctx, model, theme, size.width, size.height);
-  } else {
-    drawShareLandscape(ctx, model, theme, size.width, size.height);
-  }
-}
-
-function buildShareModel(data) {
-  const currency = data.baseCurrency || "USD";
-  const topTickers = data.tickerPL
-    .slice()
-    .sort((a, b) => Math.abs(b.realizedPL) - Math.abs(a.realizedPL))
-    .slice(0, 6);
-
-  return {
-    currency,
-    account: maskAccount(data.accountInfo.account),
-    period: renderDateRange(data),
-    nav: data.nav.total,
-    cash: data.nav.cash,
-    totalPl: data.plSummary.total.total,
-    realizedPl: data.plSummary.total.realized,
-    unrealizedPl: data.plSummary.total.unrealized,
-    twr: data.nav.rateOfReturn,
-    positions: data.positions.length,
-    sections: Object.keys(data.sectionStats).length,
-    allocation: data.assetAllocation.slice(0, 4),
-    monthly: data.monthlySummary.slice(-6),
-    topTickers,
-    generatedDate: new Intl.DateTimeFormat(numberLocale(), {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit"
-    }).format(new Date())
-  };
-}
-
-function drawShareLandscape(ctx, model, theme, width, height) {
-  drawShareBrand(ctx, theme, 54, 44);
-  drawShareText(ctx, "IBKR Portfolio Insight", 54, 116, 34, 900, theme.ink, { maxWidth: 560 });
-  drawShareText(ctx, "Local-only Activity Statement analytics", 54, 160, 16, 600, theme.muted, { maxWidth: 560 });
-  drawSharePill(ctx, model.account, 54, 194, theme);
-  drawSharePill(ctx, model.period, 180, 194, theme, { width: 310 });
-  drawSharePill(ctx, `${model.currency} Base`, 508, 194, theme, { accent: true, width: 118 });
-
-  drawShareReturn(ctx, model, theme, width - 390, 76, 330);
-  drawShareKpi(ctx, "Ending NAV", formatMoney(model.nav, model.currency), theme, 54, 252, 254, 100);
-  drawShareKpi(ctx, "Total P/L", signedMoney(model.totalPl, model.currency), theme, 324, 252, 254, 100, model.totalPl);
-  drawShareKpi(ctx, "Unrealized", signedMoney(model.unrealizedPl, model.currency), theme, 594, 252, 254, 100, model.unrealizedPl);
-  drawShareKpi(ctx, "Positions", formatNumber(model.positions), theme, 864, 252, 254, 100);
-
-  drawShareAllocation(ctx, model, theme, 54, 388, 330, 198);
-  drawShareMonthly(ctx, model, theme, 408, 388, 350, 198);
-  drawShareTickers(ctx, model, theme, 782, 388, 364, 198);
-  drawShareFooter(ctx, model, theme, 54, height - 42, width - 108);
-}
-
-function drawSharePortrait(ctx, model, theme, width, height) {
-  drawShareBrand(ctx, theme, 64, 58);
-  drawShareText(ctx, "IBKR Portfolio Insight", 64, 146, 44, 900, theme.ink, { maxWidth: 680 });
-  drawShareText(ctx, "Local-only Activity Statement analytics", 64, 204, 22, 600, theme.muted, { maxWidth: 640 });
-  drawSharePill(ctx, model.account, 64, 252, theme, { scale: 1.18, width: 150 });
-  drawSharePill(ctx, model.period, 232, 252, theme, { scale: 1.18, width: 430 });
-  drawShareReturn(ctx, model, theme, 690, 242, 320, { large: true });
-
-  drawShareKpi(ctx, "Ending NAV", formatMoney(model.nav, model.currency), theme, 64, 360, 452, 130, model.nav, { scale: 1.18 });
-  drawShareKpi(ctx, "Total P/L", signedMoney(model.totalPl, model.currency), theme, 564, 360, 452, 130, model.totalPl, { scale: 1.18 });
-  drawShareKpi(ctx, "Realized", signedMoney(model.realizedPl, model.currency), theme, 64, 518, 452, 130, model.realizedPl, { scale: 1.18 });
-  drawShareKpi(ctx, "Unrealized", signedMoney(model.unrealizedPl, model.currency), theme, 564, 518, 452, 130, model.unrealizedPl, { scale: 1.18 });
-
-  drawShareAllocation(ctx, model, theme, 64, 704, 952, 230, { scale: 1.12 });
-  drawShareMonthly(ctx, model, theme, 64, 976, 952, 190, { scale: 1.12 });
-  drawShareTickers(ctx, model, theme, 64, 1208, 952, 92, { compact: true, scale: 1.12 });
-  drawShareFooter(ctx, model, theme, 64, height - 54, width - 128, { scale: 1.15 });
-}
-
-function drawShareBrand(ctx, theme, x, y) {
-  drawShareRoundRect(ctx, x, y, 48, 48, 7, theme.primary);
-  drawShareText(ctx, "IB", x + 13, y + 12, 18, 900, "#ffffff");
-  drawShareText(ctx, "IBKR Analytics Studio", x + 64, y + 4, 18, 900, theme.ink);
-  drawShareText(ctx, "Private browser-side parser", x + 64, y + 29, 13, 700, theme.muted);
-}
-
-function drawShareReturn(ctx, model, theme, x, y, width, options = {}) {
-  const size = options.large ? 54 : 46;
-  const value = formatSignedPercent(model.twr);
-  drawShareText(ctx, "Time Weighted Return", x, y, 13, 800, theme.muted, { align: "right", maxWidth: width });
-  drawShareText(ctx, value, x + width, y + 20, size, 900, shareValueColor(model.twr, theme), { align: "right", maxWidth: width });
-}
-
-function drawShareKpi(ctx, label, value, theme, x, y, width, height, tone = 0, options = {}) {
-  const scale = options.scale || 1;
-  drawSharePanel(ctx, x, y, width, height, theme);
-  drawShareText(ctx, label, x + 18 * scale, y + 16 * scale, 12 * scale, 900, theme.muted, { maxWidth: width - 36 * scale });
-  drawShareText(ctx, value, x + 18 * scale, y + 43 * scale, 27 * scale, 900, shareValueColor(tone, theme), { maxWidth: width - 36 * scale });
-}
-
-function drawShareAllocation(ctx, model, theme, x, y, width, height, options = {}) {
-  const scale = options.scale || 1;
-  drawSharePanel(ctx, x, y, width, height, theme);
-  drawShareText(ctx, "Asset Allocation", x + 20 * scale, y + 16 * scale, 14 * scale, 900, theme.muted);
-  const rows = model.allocation.length ? model.allocation : [{ name: "No positions", value: 0, weight: 0 }];
-  rows.slice(0, 4).forEach((row, index) => {
-    const rowY = y + 54 * scale + index * 34 * scale;
-    drawShareText(ctx, displayGroup(row.name), x + 20 * scale, rowY, 14 * scale, 800, theme.ink, { maxWidth: width * 0.45 });
-    ctx.fillStyle = theme.surfaceMid;
-    ctx.fillRect(x + width * 0.48, rowY + 5 * scale, width * 0.31, 7 * scale);
-    ctx.fillStyle = theme.accent;
-    ctx.fillRect(x + width * 0.48, rowY + 5 * scale, Math.max(3, width * 0.31 * (row.weight || 0)), 7 * scale);
-    drawShareText(ctx, formatPercent((row.weight || 0) * 100), x + width - 20 * scale, rowY, 13 * scale, 800, theme.muted, { align: "right" });
-  });
-}
-
-function drawShareMonthly(ctx, model, theme, x, y, width, height, options = {}) {
-  const scale = options.scale || 1;
-  drawSharePanel(ctx, x, y, width, height, theme);
-  drawShareText(ctx, "Monthly Net", x + 20 * scale, y + 16 * scale, 14 * scale, 900, theme.muted);
-  const rows = model.monthly.length ? model.monthly : [];
-  if (!rows.length) {
-    drawShareText(ctx, "No monthly data", x + 20 * scale, y + 62 * scale, 16 * scale, 700, theme.muted);
-    return;
-  }
-  const max = Math.max(1, ...rows.map((row) => Math.abs(row.net)));
-  const chartX = x + 22 * scale;
-  const chartY = y + 64 * scale;
-  const chartH = height - 104 * scale;
-  const gap = 12 * scale;
-  const barW = (width - 44 * scale - gap * (rows.length - 1)) / rows.length;
-  rows.forEach((row, index) => {
-    const barH = Math.max(4, Math.abs(row.net) / max * chartH);
-    const barX = chartX + index * (barW + gap);
-    ctx.fillStyle = row.net >= 0 ? theme.primary : theme.negative;
-    ctx.fillRect(barX, chartY + chartH - barH, barW, barH);
-    drawShareText(ctx, shortMonth(row.month), barX + barW / 2, chartY + chartH + 10 * scale, 11 * scale, 800, theme.muted, { align: "center" });
-  });
-}
-
-function drawShareTickers(ctx, model, theme, x, y, width, height, options = {}) {
-  const scale = options.scale || 1;
-  drawSharePanel(ctx, x, y, width, height, theme);
-  drawShareText(ctx, "Top Contributors", x + 20 * scale, y + 16 * scale, 14 * scale, 900, theme.muted);
-  const rows = model.topTickers.slice(0, options.compact ? 3 : 5);
-  rows.forEach((row, index) => {
-    const rowY = y + 52 * scale + index * 27 * scale;
-    drawShareText(ctx, row.ticker, x + 20 * scale, rowY, 14 * scale, 900, theme.ink, { maxWidth: width * 0.4 });
-    drawShareText(ctx, signedMoney(row.realizedPL, model.currency), x + width - 20 * scale, rowY, 14 * scale, 900, shareValueColor(row.realizedPL, theme), { align: "right", maxWidth: width * 0.55 });
-  });
-}
-
-function drawShareFooter(ctx, model, theme, x, y, width, options = {}) {
-  const scale = options.scale || 1;
-  drawShareText(ctx, "Local-only report · No statement data uploaded", x, y, 13 * scale, 800, theme.muted);
-  drawShareText(ctx, `Generated ${model.generatedDate}`, x + width, y, 13 * scale, 800, theme.muted, { align: "right" });
-}
-
-function drawSharePanel(ctx, x, y, width, height, theme) {
-  drawShareRoundRect(ctx, x, y, width, height, 10, theme.surface);
-  ctx.strokeStyle = theme.line;
-  ctx.lineWidth = 1;
-  drawShareRoundedPath(ctx, x, y, width, height, 10);
-  ctx.stroke();
-}
-
-function drawSharePill(ctx, text, x, y, theme, options = {}) {
-  const scale = options.scale || 1;
-  const width = options.width || Math.max(104 * scale, ctx.measureText(String(text)).width + 34 * scale);
-  drawShareRoundRect(ctx, x, y, width, 32 * scale, 16 * scale, options.accent ? theme.accentSoft : theme.surfaceMid);
-  drawShareText(ctx, text, x + 16 * scale, y + 8 * scale, 12 * scale, 900, options.accent ? theme.accent : theme.muted, { maxWidth: width - 32 * scale });
-  return width;
-}
-
-function drawShareText(ctx, text, x, y, size, weight, color, options = {}) {
-  ctx.font = `${weight} ${size}px Inter, Segoe UI, Arial, sans-serif`;
-  ctx.fillStyle = color;
-  ctx.textAlign = options.align || "left";
-  ctx.textBaseline = "top";
-  const value = fitCanvasText(ctx, String(text ?? ""), options.maxWidth || Infinity);
-  ctx.fillText(value, x, y);
-}
-
-function fitCanvasText(ctx, text, maxWidth) {
-  if (!Number.isFinite(maxWidth) || ctx.measureText(text).width <= maxWidth) return text;
-  let clipped = text;
-  while (clipped.length > 1 && ctx.measureText(`${clipped}...`).width > maxWidth) {
-    clipped = clipped.slice(0, -1);
-  }
-  return `${clipped}...`;
-}
-
-function drawShareRoundRect(ctx, x, y, width, height, radius, fill) {
-  drawShareRoundedPath(ctx, x, y, width, height, radius);
-  ctx.fillStyle = fill;
-  ctx.fill();
-}
-
-function drawShareRoundedPath(ctx, x, y, width, height, radius) {
-  const r = Math.min(radius, width / 2, height / 2);
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + width - r, y);
-  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
-  ctx.lineTo(x + width, y + height - r);
-  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
-  ctx.lineTo(x + r, y + height);
-  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
-}
-
-function shareTheme() {
-  if (state.theme === "dark") {
-    return {
-      bg: "#111827",
-      surface: "#172033",
-      surfaceMid: "#24344d",
-      ink: "#edf3ff",
-      muted: "#b8c4d6",
-      line: "#41536f",
-      primary: "#f8fafc",
-      accent: "#ff5b7c",
-      accentSoft: "#3c1c27",
-      positive: "#4ade80",
-      negative: "#fb7185"
-    };
-  }
-  return {
-    bg: "#f8f9ff",
-    surface: "#ffffff",
-    surfaceMid: "#eef4ff",
-    ink: "#0b1c30",
-    muted: "#45464d",
-    line: "#d7dce6",
-    primary: "#0f172a",
-    accent: "#b80938",
-    accentSoft: "#fff0f3",
-    positive: "#057a55",
-    negative: "#c92020"
-  };
-}
-
-function shareValueColor(value, theme) {
-  if (value > 0) return theme.positive;
-  if (value < 0) return theme.negative;
-  return theme.ink;
 }
 
 async function drawShareImage(canvas, data, format) {
@@ -2199,11 +1940,11 @@ function legacyShareValueColor(value, theme) {
 }
 
 function summarizeVisiblePositions(rows, key) {
-  const total = rows.reduce((sum, row) => sum + Math.abs(row.value), 0) || 1;
+  const total = rows.reduce((sum, row) => sum + Math.abs(row.baseValue ?? row.value), 0) || 1;
   const map = new Map();
   for (const row of rows) {
     const name = row[key] || "Unknown";
-    map.set(name, (map.get(name) || 0) + Math.abs(row.value));
+    map.set(name, (map.get(name) || 0) + Math.abs(row.baseValue ?? row.value));
   }
   return [...map.entries()]
     .map(([name, value]) => ({ name, value, weight: value / total }))

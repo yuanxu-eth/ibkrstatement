@@ -7,7 +7,7 @@ export function parseIbkrReport(csvText) {
   const dividendIncome = parseDividendIncome(sections, exchangeRates);
   const positions = applyPositionDividends(
     parseOpenPositions(sections["Open Positions"], exchangeRates),
-    dividendIncome.bySymbol
+    dividendIncome
   );
   const tradeSummary = analyzeTrades(sections.Trades, exchangeRates);
   const tradeDetails = parseTradeDetails(sections.Trades, exchangeRates);
@@ -327,6 +327,9 @@ function parseOpenPositions(rows = [], exchangeRates) {
       const rate = exchangeRates[currency] || 1;
       const option = parseOptionSymbol(row.Symbol);
       const quantity = toNumber(row.Quantity);
+      const costBasis = toNumber(row["Cost Basis"]);
+      const value = toNumber(row.Value);
+      const unrealizedPL = toNumber(row["Unrealized P/L"]);
 
       return {
         assetCategory,
@@ -335,11 +338,16 @@ function parseOpenPositions(rows = [], exchangeRates) {
         quantity,
         side: quantity < 0 ? "Short" : "Long",
         multiplier: toNumber(row.Mult),
-        costBasis: toNumber(row["Cost Basis"]) * rate,
+        costBasis,
         closePrice: toNumber(row["Close Price"]),
-        value: toNumber(row.Value) * rate,
+        value,
         dividends: 0,
-        unrealizedPL: toNumber(row["Unrealized P/L"]) * rate,
+        unrealizedPL,
+        baseCostBasis: costBasis * rate,
+        baseValue: value * rate,
+        baseDividends: 0,
+        baseUnrealizedPL: unrealizedPL * rate,
+        exchangeRate: rate,
         currency,
         isOption: option.isOption,
         optionType: option.optionType || "",
@@ -347,11 +355,12 @@ function parseOpenPositions(rows = [], exchangeRates) {
         expiry: option.expiry || ""
       };
     })
-    .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+    .sort((a, b) => Math.abs(b.baseValue ?? b.value) - Math.abs(a.baseValue ?? a.value));
 }
 
 function parseDividendIncome(sections, exchangeRates) {
   const bySymbol = {};
+  const bySymbolBase = {};
   let total = 0;
 
   for (const row of sections.Dividends || []) {
@@ -361,20 +370,26 @@ function parseDividendIncome(sections, exchangeRates) {
     if (!symbol) continue;
 
     const currency = row.Currency || "USD";
-    const value = toNumber(row.Amount) * (exchangeRates[currency] || 1);
+    const value = toNumber(row.Amount);
     if (!value) continue;
+    const baseValue = value * (exchangeRates[currency] || 1);
 
     bySymbol[symbol] = (bySymbol[symbol] || 0) + value;
-    total += value;
+    bySymbolBase[symbol] = (bySymbolBase[symbol] || 0) + baseValue;
+    total += baseValue;
   }
 
   return {
     bySymbol,
+    bySymbolBase,
     total
   };
 }
 
-function applyPositionDividends(positions, dividendBySymbol) {
+function applyPositionDividends(positions, dividendIncome) {
+  const dividendBySymbol = dividendIncome?.bySymbol || {};
+  const baseDividendBySymbol = dividendIncome?.bySymbolBase || {};
+
   return positions.map((position) => {
     const symbols = new Set([
       position.symbol,
@@ -382,9 +397,11 @@ function applyPositionDividends(positions, dividendBySymbol) {
       parseOptionSymbol(position.symbol).baseSymbol
     ].filter(Boolean));
     const dividends = Array.from(symbols).reduce((sum, symbol) => sum + (dividendBySymbol[symbol] || 0), 0);
+    const baseDividends = Array.from(symbols).reduce((sum, symbol) => sum + (baseDividendBySymbol[symbol] || 0), 0);
     return {
       ...position,
-      dividends
+      dividends,
+      baseDividends
     };
   });
 }
@@ -411,27 +428,31 @@ function analyzeTrades(rows = [], exchangeRates) {
 
     const currency = row.Currency || "USD";
     const rate = exchangeRates[currency] || 1;
-    const commission = toNumber(readCommission(row)) * rate;
-    const tradeRealized = toNumber(row["Realized P/L"]) * rate;
+    const rawCommission = toNumber(readCommission(row));
+    const rawRealizedPL = toNumber(row["Realized P/L"]);
+    const commission = rawCommission * rate;
+    const tradeRealized = rawRealizedPL * rate;
     totalCommissions += Math.abs(commission);
     realizedPL += tradeRealized;
 
     if (category === OPTION_ASSET && row.Code?.includes("O") && toNumber(row.Quantity) < 0) {
-      optionPremium += (toNumber(row.Proceeds) + toNumber(readCommission(row))) * rate;
+      optionPremium += (toNumber(row.Proceeds) + rawCommission) * rate;
     }
 
-    if (tradeRealized !== 0) {
+    if (rawRealizedPL !== 0) {
       topRealizedTrades.push({
         date: date ? date.toISOString() : "",
         symbol: row.Symbol || "",
         category,
-        realizedPL: tradeRealized,
+        realizedPL: rawRealizedPL,
+        baseRealizedPL: tradeRealized,
+        exchangeRate: rate,
         currency
       });
     }
   }
 
-  topRealizedTrades.sort((a, b) => Math.abs(b.realizedPL) - Math.abs(a.realizedPL));
+  topRealizedTrades.sort((a, b) => Math.abs(b.baseRealizedPL ?? b.realizedPL) - Math.abs(a.baseRealizedPL ?? a.realizedPL));
 
   return {
     orderCount: orderTrades.length,
@@ -456,10 +477,10 @@ function parseTradeDetails(rows = [], exchangeRates) {
       const rate = exchangeRates[currency] || 1;
       const quantity = toNumber(row.Quantity);
       const price = toNumber(row["T. Price"]);
-      const proceeds = toNumber(row.Proceeds) * rate;
-      const commission = toNumber(readCommission(row)) * rate;
-      const realizedPL = toNumber(row["Realized P/L"]) * rate;
-      const mtmPL = toNumber(row["MTM P/L"]) * rate;
+      const proceeds = toNumber(row.Proceeds);
+      const commission = toNumber(readCommission(row));
+      const realizedPL = toNumber(row["Realized P/L"]);
+      const mtmPL = toNumber(row["MTM P/L"]);
 
       return {
         date: date ? dateKey(date) : "",
@@ -477,6 +498,12 @@ function parseTradeDetails(rows = [], exchangeRates) {
         commission,
         realizedPL,
         mtmPL,
+        baseProceeds: proceeds * rate,
+        baseGrossValue: Math.abs(proceeds * rate),
+        baseCommission: commission * rate,
+        baseRealizedPL: realizedPL * rate,
+        baseMtmPL: mtmPL * rate,
+        exchangeRate: rate,
         code: row.Code || ""
       };
     })
@@ -663,7 +690,8 @@ function summarizePositions(positions, key) {
 
   for (const position of positions) {
     const name = position[key] || "Other";
-    map.set(name, (map.get(name) || 0) + Math.abs(position.value));
+    const value = position.baseValue ?? position.value;
+    map.set(name, (map.get(name) || 0) + Math.abs(value));
   }
 
   const total = Array.from(map.values()).reduce((sum, value) => sum + value, 0);
